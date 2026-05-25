@@ -63,16 +63,7 @@ def _split_into_chunks(document: str) -> list[str]:
 
 
 def _rerank_chunks(query: str, chunks: list[str], top_n: int = 12) -> list[str]:
-    """Score chunks with BGE-Reranker and return the top_n most relevant."""
-    try:
-        from FlagEmbedding import FlagReranker
-        reranker = FlagReranker("BAAI/bge-reranker-v2-m3", use_fp16=True)
-        scores = reranker.compute_score([[query, c] for c in chunks], normalize=True)
-        ranked = sorted(zip(scores, chunks), key=lambda x: x[0], reverse=True)
-        return [c for _, c in ranked[:top_n]]
-    except Exception:
-        log.warning("Reranker unavailable — returning chunks as-is.")
-        return chunks[:top_n]
+    return chunks[:top_n]
     
 
 def save_mermaid_to_png(mermaid_str, output_filename):

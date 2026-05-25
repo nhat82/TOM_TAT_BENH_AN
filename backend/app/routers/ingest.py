@@ -1,31 +1,55 @@
-import pandas as pd
-import chromadb
-from openai import OpenAI
+"""
+POST /api/ingest
+----------------
+Request  { "force": false }   (optional)
+Response { "added": int, "skipped": int }
 
-def row_to_text(row) -> str:
-    # what actually gets embedded — keep it information-dense
-    return f"{row['date']} | {row['category']} | {row['title']} | {row.get('value','')} | {row.get('note','')}"
+Triggers the CSV ingestion pipeline from app.services.ingest.
+Runs in a thread pool so it doesn't block the event loop during embedding.
+"""
 
-def ingest(csv_path: str, chroma_path: str):
-    df = pd.read_csv(csv_path)
-    client = chromadb.PersistentClient(path=chroma_path)
-    col = client.get_or_create_collection("patient_records")
-    oai = OpenAI()
+from __future__ import annotations
 
-    for _, row in df.iterrows():
-        text = row_to_text(row)
-        emb = oai.embeddings.create(input=text, model="text-embedding-3-small").data[0].embedding
-        col.upsert(
-            ids=[f"{row['patient_id']}_{row['date']}_{row['category']}"],
-            embeddings=[emb],
-            documents=[text],
-            metadatas=[{
-                "patient_id": row["patient_id"],
-                "date":       row["date"],
-                "category":   row["category"],
-            }]
+import logging
+from asyncio import get_event_loop
+
+from fastapi import APIRouter, HTTPException
+from pydantic import BaseModel, Field
+
+from app.services.ingest import DEFAULT_CSV, ingest_csv
+
+log = logging.getLogger(__name__)
+router = APIRouter(prefix="/api", tags=["ingest"])
+
+
+class IngestRequest(BaseModel):
+    force: bool = Field(False, description="Re-embed all records even if unchanged")
+
+
+class IngestResponse(BaseModel):
+    added: int
+    skipped: int
+
+
+@router.post("/ingest", response_model=IngestResponse)
+async def run_ingest(body: IngestRequest = IngestRequest()) -> IngestResponse:
+    """
+    Ingest the default CSV into ChromaDB.
+    Skips records whose content hash hasn't changed unless force=True.
+    """
+    if not DEFAULT_CSV.exists():
+        raise HTTPException(
+            status_code=404,
+            detail=f"CSV not found: {DEFAULT_CSV}",
         )
-    print(f"Ingested {len(df)} records")
 
-if __name__ == "__main__":
-    ingest("data/sample.csv", "./chroma_data")
+    try:
+        loop = get_event_loop()
+        result = await loop.run_in_executor(
+            None, lambda: ingest_csv(DEFAULT_CSV, body.force)
+        )
+    except Exception as exc:
+        log.exception("Ingestion failed")
+        raise HTTPException(status_code=500, detail=f"Ingestion failed: {exc}")
+
+    return IngestResponse(**result)
