@@ -51,7 +51,7 @@ from google.genai import types as _genai_types
 # Free tier for gemini-2.0-flash-lite: 15 RPM / 1 000 RPD / 250 K TPM
 # Keeping judge on a different model from the collection LLM (2.5-flash-lite)
 # so they draw from separate quota pools.
-_JUDGE_MODEL          = os.getenv("GEMINI_JUDGE_MODEL", "gemini-2.0-flash-lite")
+_JUDGE_MODEL          = os.getenv("GEMINI_JUDGE_MODEL", "gemini-3.1-flash-lite")
 _JUDGE_WORKERS        = 1    # parallel judge threads (stay ≤ 15 RPM with 2 workers)
 _ERROR_RETRIES        = 3    # max retries for non-rate-limit errors before infra_failure
 _MAX_RATE_LIMIT_WAIT  = int(os.getenv("JUDGE_MAX_WAIT", "900"))  # seconds before rate_limit_timeout
@@ -203,7 +203,7 @@ async def _run_single(patient_id: str, question: str, thread_id: str) -> dict:
         call_n += 1
         await asyncio.sleep(60)
         try:
-            print(f"[gemini] requesting model={os.getenv('GEMINI_MODEL', 'gemini-2.5-flash-lite')}")
+            print(f"[gemini] requesting model={os.getenv('GEMINI_MODEL', 'gemini-3.1-flash-lite')}")
             result = await chat_graph.ainvoke(state, config=config)
             return {"answer": result.get("answer", ""), "chunks": result.get("chunks", [])}
         except Exception as exc:
