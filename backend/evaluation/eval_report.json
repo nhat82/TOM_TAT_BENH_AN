@@ -1,0 +1,187 @@
+{
+  "timestamp": "2026-05-27T14:22:05.679049",
+  "queries_total": 19,
+  "queries_valid": 19,
+  "queries_errored": 0,
+  "metrics": {
+    "faithfulness": 0.105,
+    "answer_relevancy": 0.0,
+    "citation_accuracy": 0.0,
+    "acronym_score": 1.0
+  },
+  "acronym_failures": [],
+  "per_query": [
+    {
+      "patient_id": "BN0003",
+      "category": "diagnosis",
+      "question": "Chẩn đoán ra viện của bệnh nhân là gì?",
+      "answer": "Chẩn đoán ra viện của bệnh nhân là Ung thư đại tràng Sigma pT4N2M1 - giai đoạn IV.",
+      "faithfulness": 1.0,
+      "answer_relevancy": 0.0,
+      "citation_accuracy": 0.0
+    },
+    {
+      "patient_id": "BN0064",
+      "category": "diagnosis",
+      "question": "Bệnh nhân được chẩn đoán mắc bệnh gì và giai đoạn nào?",
+      "answer": "Bệnh nhân được chẩn đoán Ung thư phổi phải T4N2M1 - di căn gan, phổi, xương - Giai đoạn IV.",
+      "faithfulness": 1.0,
+      "answer_relevancy": 0.0,
+      "citation_accuracy": 0.0
+    },
+    {
+      "patient_id": "BN0056",
+      "category": "diagnosis",
+      "question": "Chẩn đoán chính lúc ra viện của bệnh nhân là gì?",
+      "answer": "Chẩn đoán chính lúc ra viện của bệnh nhân là Ung thư tụy pT4N0M0 giai đoạn III.",
+      "faithfulness": 0.0,
+      "answer_relevancy": 0.0,
+      "citation_accuracy": 0.0
+    },
+    {
+      "patient_id": "BN0051",
+      "category": "diagnosis",
+      "question": "Bệnh nhân nhập viện với chẩn đoán ban đầu là gì?",
+      "answer": "Bệnh nhân nhập viện với chẩn đoán là U trực tràng.",
+      "faithfulness": 0.0,
+      "answer_relevancy": 0.0,
+      "citation_accuracy": 0.0
+    },
+    {
+      "patient_id": "BN0056",
+      "category": "reason_for_admission",
+      "question": "Lý do bệnh nhân đến khám ban đầu là gì?",
+      "answer": "Bệnh nhân đến khám ban đầu vì U đầu tụy nghi K biểu mô tuyến tụy, sỏi đường mật trong gan.",
+      "faithfulness": 0.0,
+      "answer_relevancy": 0.0,
+      "citation_accuracy": 0.0
+    },
+    {
+      "patient_id": "BN0052",
+      "category": "reason_for_admission",
+      "question": "Lý do bệnh nhân đến khám là gì?",
+      "answer": "Bệnh nhân đến khám vì U ác của phế quản và phổi, đau lưng, suy kiệt và táo bón.",
+      "faithfulness": 0.0,
+      "answer_relevancy": 0.0,
+      "citation_accuracy": 0.0
+    },
+    {
+      "patient_id": "BN0003",
+      "category": "reason_for_admission",
+      "question": "Tại sao bệnh nhân được nhập viện?",
+      "answer": "Bệnh nhân được nhập viện vì tiểu máu và ung thư đại tràng Sigma pT4N2M1 - giai đoạn IV.",
+      "faithfulness": 0.0,
+      "answer_relevancy": 0.0,
+      "citation_accuracy": 0.0
+    },
+    {
+      "patient_id": "BN0064",
+      "category": "discharge_plan",
+      "question": "Hướng điều trị tiếp theo khi ra viện của bệnh nhân là gì?",
+      "answer": "Hướng điều trị tiếp theo khi ra viện của bệnh nhân là điều trị giảm nhẹ, giảm đau morphine và chăm sóc triệu chứng.",
+      "faithfulness": 0.0,
+      "answer_relevancy": 0.0,
+      "citation_accuracy": 0.0
+    },
+    {
+      "patient_id": "BN0051",
+      "category": "discharge_plan",
+      "question": "Bệnh nhân được chuyển đến đâu và kế hoạch điều trị tiếp theo là gì?",
+      "answer": "Bệnh nhân được chuyển đến Bệnh viện Thanh Nhàn để điều trị. Kế hoạch là sau khi tình trạng ổn định, bệnh nhân sẽ quay lại Bệnh viện Ung bướu Hà Nội để tiếp tục điều trị chuyên khoa ung bướu.",
+      "faithfulness": 0.0,
+      "answer_relevancy": 0.0,
+      "citation_accuracy": 0.0
+    },
+    {
+      "patient_id": "BN0003",
+      "category": "discharge_plan",
+      "question": "Bệnh nhân ra viện theo hướng nào?",
+      "answer": "Bệnh nhân ra viện theo hướng không tiếp tục điều trị, xin ra viện.",
+      "faithfulness": 0.0,
+      "answer_relevancy": 0.0,
+      "citation_accuracy": 0.0
+    },
+    {
+      "patient_id": "BN0003",
+      "category": "vitals",
+      "question": "Các chỉ số sinh hiệu của bệnh nhân được ghi nhận như thế nào?",
+      "answer": "Các chỉ số sinh hiệu của bệnh nhân được ghi nhận như sau:\n\n*   **Chiều cao:** 152 cm\n*   **Cân nặng:** 55 kg\n*   **Nhịp tim:** 91 lần/phút\n*   **Nhiệt độ:** 36.6 °C\n*   **Huyết áp tâm thu:** 164 mmHg\n*   **Huyết áp tâm trương:** 84 mmHg\n*   **Nhịp thở:** 18 lần/phút",
+      "faithfulness": 0.0,
+      "answer_relevancy": 0.0,
+      "citation_accuracy": 0.0
+    },
+    {
+      "patient_id": "BN0051",
+      "category": "vitals",
+      "question": "Huyết áp và cân nặng của bệnh nhân là bao nhiêu?",
+      "answer": "Huyết áp của bệnh nhân là 120/80 mmHg và cân nặng là 52 kg.",
+      "faithfulness": 0.0,
+      "answer_relevancy": 0.0,
+      "citation_accuracy": 0.0
+    },
+    {
+      "patient_id": "BN0064",
+      "category": "medication",
+      "question": "Bệnh nhân đã được sử dụng những loại thuốc nào trong quá trình điều trị?",
+      "answer": "Hồ sơ bệnh nhân ghi nhận bệnh nhân đã được sử dụng thuốc \"Acetate Ringer's\". Các thông tin khác về đường dùng, liều dùng, lần dùng và đơn vị của thuốc này không được cung cấp.",
+      "faithfulness": 0.0,
+      "answer_relevancy": 0.0,
+      "citation_accuracy": 0.0
+    },
+    {
+      "patient_id": "BN0056",
+      "category": "medication",
+      "question": "Liệt kê các thuốc chính được sử dụng cho bệnh nhân.",
+      "answer": "Acetate Ringer's là một loại thuốc được liệt kê trong hồ sơ bệnh nhân.",
+      "faithfulness": 0.0,
+      "answer_relevancy": 0.0,
+      "citation_accuracy": 0.0
+    },
+    {
+      "patient_id": "BN0003",
+      "category": "imaging",
+      "question": "Kết quả chụp chiếu hình ảnh của bệnh nhân cho thấy điều gì?",
+      "answer": "Thông tin về kết quả chụp chiếu hình ảnh của bệnh nhân không có trong hồ sơ được cung cấp.",
+      "faithfulness": 0.0,
+      "answer_relevancy": 0.0,
+      "citation_accuracy": 0.0
+    },
+    {
+      "patient_id": "BN0056",
+      "category": "imaging",
+      "question": "Kết quả chẩn đoán hình ảnh dạ dày của bệnh nhân như thế nào?",
+      "answer": "Miệng nối dạ dày lưu thông tốt xuống các quai ruột không thấy rò hay ứ đọng dịch. Lưu thông thuốc qua ruột non bình thường.",
+      "faithfulness": 0.0,
+      "answer_relevancy": 0.0,
+      "citation_accuracy": 0.0
+    },
+    {
+      "patient_id": "BN0052",
+      "category": "labs",
+      "question": "Kết quả xét nghiệm máu của bệnh nhân có điểm nào đáng chú ý không?",
+      "answer": "Hồ sơ bệnh nhân có thông tin về xét nghiệm RDW với kết quả là 16.7. Không có thông tin về khoảng bình thường của xét nghiệm này.",
+      "faithfulness": 0.0,
+      "answer_relevancy": 0.0,
+      "citation_accuracy": 0.0
+    },
+    {
+      "patient_id": "BN0003",
+      "category": "hallucination_guard",
+      "question": "Bệnh nhân có tiền sử dị ứng thuốc không?",
+      "answer": "Thông tin về tiền sử dị ứng thuốc của bệnh nhân không có trong hồ sơ được cung cấp.",
+      "faithfulness": 0.0,
+      "answer_relevancy": 0.0,
+      "citation_accuracy": 0.0
+    },
+    {
+      "patient_id": "BN0064",
+      "category": "hallucination_guard",
+      "question": "Bệnh nhân có phẫu thuật lần nào trước đây không?",
+      "answer": "Thông tin về việc bệnh nhân có phẫu thuật lần nào trước đây hay không không có trong hồ sơ được cung cấp.",
+      "faithfulness": 0.0,
+      "answer_relevancy": 0.0,
+      "citation_accuracy": 0.0
+    }
+  ],
+  "errors": []
+}

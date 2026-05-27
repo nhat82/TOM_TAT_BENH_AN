@@ -1,0 +1,111 @@
+name: RAG Evaluation
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "backend/app/**"
+      - "backend/evaluation/**"
+      - "backend/requirements*.txt"
+  workflow_dispatch:
+
+jobs:
+  evaluate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45        # rate-limit waits can stack; 45 min is safe for 19 judge calls
+    defaults:
+      run:
+        working-directory: backend
+
+    env:
+      GOOGLE_API_KEY:     ${{ secrets.GOOGLE_API_KEY }}
+      CHROMA_PATH:        ./data/chromadb
+      GEMINI_JUDGE_MODEL: gemini-2.0-flash-lite   # 1 000 RPD free tier; separate quota from collection LLM
+      JUDGE_MAX_WAIT:     "900"                   # give up on a single call after 15 min of 429 waits
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: backend/requirements-eval.txt
+
+      - name: Install dependencies
+        run: pip install -r requirements-eval.txt
+
+      - name: Ingest sample data into ChromaDB
+        run: python -m app.services.ingest ingest --csv data/Sample_20BN.csv
+
+      - name: Run evaluation
+        run: python -m evaluation.run_eval --output evaluation/eval_report.json
+
+      - name: Upload evaluation report
+        if: always()           # upload even when the threshold check fails below
+        uses: actions/upload-artifact@v4
+        with:
+          name: eval-report-${{ github.sha }}
+          path: backend/evaluation/eval_report.json
+          retention-days: 30
+
+      - name: Check scores and print summary
+        run: |
+          python - <<'EOF'
+          import json, sys
+
+          with open("evaluation/eval_report.json") as f:
+              r = json.load(f)
+
+          m  = r["metrics"]
+          sc = m.get("status_counts", {})
+
+          def fmt(v):
+              return f"{v:.3f}" if v is not None else "n/a"
+
+          scored_n = m.get("scored_n", 0)
+          total_n  = m.get("total_n",  0)
+
+          print("=" * 55)
+          print("  EVALUATION RESULTS")
+          print("=" * 55)
+          print(f"  Faithfulness:       {fmt(m['faithfulness'])}  (n={scored_n})")
+          print(f"  Answer Relevancy:   {fmt(m['answer_relevancy'])}  (n={scored_n})")
+          print(f"  Citation Accuracy:  {fmt(m['citation_accuracy'])}  (n={scored_n})")
+          print(f"  Acronym Score:      {fmt(m['acronym_score'])}")
+          print(f"  ── judge status ({total_n} responses) ──")
+          print(f"  ok:                 {sc.get('ok', 0)}")
+          print(f"  model_failure:      {sc.get('model_failure', 0)}")
+          print(f"  rate_limit_timeout: {sc.get('rate_limit_timeout', 0)}")
+          print(f"  infra_failure:      {sc.get('infra_failure', 0)}")
+          print("=" * 55)
+
+          failures = []
+
+          # ── infrastructure / quota checks ──────────────────────────
+          unscored = sc.get("rate_limit_timeout", 0) + sc.get("infra_failure", 0)
+          if total_n > 0 and unscored / total_n > 0.3:
+              failures.append(
+                  f"Too many unscored responses: {unscored}/{total_n} "
+                  f"({unscored/total_n:.0%}) — check quota or network"
+              )
+
+          # ── metric threshold checks (only on responses that were scored) ──
+          THRESHOLD = 0.6
+          numeric = {
+              k: v for k, v in m.items()
+              if k in {"faithfulness", "answer_relevancy", "citation_accuracy", "acronym_score"}
+              and v is not None
+          }
+          below = [f"{k}={v:.3f}" for k, v in numeric.items() if v < THRESHOLD]
+          if below:
+              failures.append(f"Metrics below threshold ({THRESHOLD}): {', '.join(below)}")
+
+          if failures:
+              for msg in failures:
+                  print(f"\nFAIL: {msg}", file=sys.stderr)
+              sys.exit(1)
+
+          print("\nAll checks passed.")
+          EOF

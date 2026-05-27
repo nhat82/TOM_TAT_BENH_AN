@@ -1,24 +1,25 @@
 """
-LangChain ChatOpenAI singleton.
-Model and API key are read from environment variables.
+LangChain LLM singleton — lazily initialised on first call so that the
+module can be imported without GOOGLE_API_KEY present (e.g. during tests
+or cold imports).  The first actual call to get_llm() will raise clearly
+if the key is missing.
 """
 
 from __future__ import annotations
-from langchain_google_genai import ChatGoogleGenerativeAI
 
 import os
-# from langchain_openai import ChatOpenAI
 
-_llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash-lite", google_api_key=os.getenv("GOOGLE_API_KEY"))
+from langchain_google_genai import ChatGoogleGenerativeAI
+
+_llm = None
 
 
 def get_llm():
     global _llm
-    # if _llm is None:
-    #     _llm = ChatOpenAI(
-    #         model=os.getenv("OPENAI_MODEL", "gpt-4o-mini"),
-    #         temperature=0.2,         # low temperature reduces hallucinations
-    #         api_key=os.getenv("OPENAI_API_KEY", os.getenv("API_KEY", "")),
-    #     )
+    if _llm is None:
+        _llm = ChatGoogleGenerativeAI(
+            model=os.getenv("GEMINI_MODEL", "gemini-2.5-flash-lite"),
+            google_api_key=os.getenv("GOOGLE_API_KEY") or os.getenv("GEMINI_API_KEY"),
+        )
     return _llm
 

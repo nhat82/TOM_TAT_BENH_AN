@@ -2,7 +2,10 @@ node_modules/
 .env
 __pycache__/
 *.pyc
-backend/data/
+backend/data/chromadb
 dist/
 .vscode/
 .DS_Store
+.claude/
+backend/data/Sample_20BN.csv
+backend/data/Sample_BN_2026.csv

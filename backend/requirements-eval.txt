@@ -1,0 +1,3 @@
+# Evaluation dependencies — no extra packages needed beyond production.
+# google-genai is already pulled in by langchain_google_genai.
+-r requirements.txt

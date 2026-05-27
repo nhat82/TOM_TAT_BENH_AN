@@ -14,7 +14,7 @@ distro==1.9.0
 durationpy==0.10
 fastapi[standard]
 filelock==3.29.0
-fsspec==2026.4.0
+fsspec==2026.2.0
 googleapis-common-protos==1.75.0
 grpcio==1.80.0
 h11==0.16.0
