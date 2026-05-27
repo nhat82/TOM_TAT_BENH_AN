@@ -1,12 +1,12 @@
 name: RAG Evaluation
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - "backend/app/**"
-      - "backend/evaluation/**"
-      - "backend/requirements*.txt"
+  # push:
+  #   branches: [main]
+  #   paths:
+  #     - "backend/app/**"
+  #     - "backend/evaluation/**"
+  #     - "backend/requirements*.txt"
   workflow_dispatch:
 
 jobs:
