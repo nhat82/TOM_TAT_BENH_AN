@@ -120,7 +120,7 @@ def _score_all(context: str, question: str, answer: str) -> dict:
 
     while True:
         call_n += 1
-        time.sleep(10)
+        time.sleep(120)
         try:
             print(f"[gemini] requesting model={_JUDGE_MODEL}")
             resp = _get_client().models.generate_content(
@@ -201,7 +201,7 @@ async def _run_single(patient_id: str, question: str, thread_id: str) -> dict:
     call_n      = 0
     while True:
         call_n += 1
-        await asyncio.sleep(10)
+        await asyncio.sleep(60)
         try:
             print(f"[gemini] requesting model={os.getenv('GEMINI_MODEL', 'gemini-2.5-flash-lite')}")
             result = await chat_graph.ainvoke(state, config=config)
@@ -377,6 +377,8 @@ def main() -> None:
         viols = ", ".join(f"{v['acronym']} ({v['full_term']})" for v in f["violations"])
         print(f"  FAIL [{f['patient_id']}] {f['question']} → {viols}")
 
+    print("\n Cooling down before calling judge")
+    time.sleep(60)
     # 3. LLM-as-judge (synchronous Gemini calls)
     print("\n[3/3] Running LLM-as-judge metrics...")
     scores = _llm_scores(responses)

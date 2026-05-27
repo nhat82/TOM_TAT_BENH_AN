@@ -20,7 +20,7 @@ jobs:
     env:
       GOOGLE_API_KEY:     ${{ secrets.GOOGLE_API_KEY }}
       CHROMA_PATH:        ./data/chromadb
-      GEMINI_JUDGE_MODEL: gemini-2.0-flash-lite   # 1 000 RPD free tier; separate quota from collection LLM
+      GEMINI_JUDGE_MODEL: gemini-2.5-flash-lite   # 1 000 RPD free tier; separate quota from collection LLM
       JUDGE_MAX_WAIT:     "900"                   # give up on a single call after 15 min of 429 waits
 
     steps:
@@ -39,8 +39,8 @@ jobs:
       - name: Ingest sample data into ChromaDB
         run: python -m app.services.ingest ingest --csv data/Sample_20BN.csv
 
-      - name: Run evaluation
-        run: python -m evaluation.run_eval --output evaluation/eval_report.json
+      - name: Run 1st sample query evaluation
+        run: python -m evaluation.run_eval -query_number 1 --output evaluation/eval_report.json
 
       - name: Upload evaluation report
         if: always()           # upload even when the threshold check fails below
