@@ -5,6 +5,8 @@ Imported by any module that needs direct collection access without going
 through the full ingestion pipeline (e.g. the chat/summary routers).
 """
 
+from __future__ import annotations
+
 from pathlib import Path
 import chromadb
 
