@@ -7,6 +7,8 @@ No RAGAS, no nest_asyncio, no LangChain wrappers.
 Usage (from backend/):
   python -m evaluation.run_eval
   python -m evaluation.run_eval --patient-ids BN0003 BN0064
+  python -m evaluation.run_eval -query_number 1
+  python -m evaluation.run_eval --patient-ids BN0003 --query-number 1 (the index applies after the patient filter)
 """
 
 from __future__ import annotations
@@ -50,10 +52,10 @@ from google.genai import types as _genai_types
 # Keeping judge on a different model from the collection LLM (2.5-flash-lite)
 # so they draw from separate quota pools.
 _JUDGE_MODEL          = os.getenv("GEMINI_JUDGE_MODEL", "gemini-2.0-flash-lite")
-_JUDGE_WORKERS        = 2    # parallel judge threads (stay ≤ 15 RPM with 2 workers)
+_JUDGE_WORKERS        = 1    # parallel judge threads (stay ≤ 15 RPM with 2 workers)
 _ERROR_RETRIES        = 3    # max retries for non-rate-limit errors before infra_failure
 _MAX_RATE_LIMIT_WAIT  = int(os.getenv("JUDGE_MAX_WAIT", "900"))  # seconds before rate_limit_timeout
-_COLLECT_SEM          = 2    # max concurrent chat-graph invocations
+_COLLECT_SEM          = 1    # max concurrent chat-graph invocations
 _COLLECT_RETRIES      = 3    # per-query retry attempts (non-rate-limit)
 
 _client: _genai.Client | None = None
@@ -118,7 +120,9 @@ def _score_all(context: str, question: str, answer: str) -> dict:
 
     while True:
         call_n += 1
+        time.sleep(10)
         try:
+            print(f"[gemini] requesting model={_JUDGE_MODEL}")
             resp = _get_client().models.generate_content(
                 model=_JUDGE_MODEL,
                 contents=prompt,
@@ -197,7 +201,9 @@ async def _run_single(patient_id: str, question: str, thread_id: str) -> dict:
     call_n      = 0
     while True:
         call_n += 1
+        await asyncio.sleep(10)
         try:
+            print(f"[gemini] requesting model={os.getenv('GEMINI_MODEL', 'gemini-2.5-flash-lite')}")
             result = await chat_graph.ainvoke(state, config=config)
             return {"answer": result.get("answer", ""), "chunks": result.get("chunks", [])}
         except Exception as exc:
@@ -215,10 +221,12 @@ async def _run_single(patient_id: str, question: str, thread_id: str) -> dict:
                 await asyncio.sleep(2 ** error_count)
 
 
-async def _collect(patient_filter: list[str] | None) -> list[dict]:
+async def _collect(patient_filter: list[str] | None, query_number: int | None = None) -> list[dict]:
     queries = SAMPLE_QUERIES
     if patient_filter:
         queries = [q for q in queries if q["patient_id"] in patient_filter]
+    if query_number is not None:
+        queries = [queries[query_number - 1]]
 
     ts  = str(int(time.time()))
     sem = asyncio.Semaphore(_COLLECT_SEM)
@@ -333,6 +341,8 @@ def _parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description="Run evaluation on the medical RAG pipeline.")
     p.add_argument("--patient-ids", nargs="+", metavar="ID",
                    help="Restrict to these patient IDs (default: all)")
+    p.add_argument("--query-number", "-query_number", type=int, metavar="N",
+                   help="Run only the Nth query (1-based index into SAMPLE_QUERIES)")
     p.add_argument("--output", type=Path,
                    default=Path(__file__).parent / "eval_report.json",
                    help="Output JSON path (default: evaluation/eval_report.json)")
@@ -349,7 +359,7 @@ def main() -> None:
 
     # 1. Collect — clean asyncio.run(), no nest_asyncio in scope
     print("\n[1/3] Running queries through chat pipeline...")
-    responses = asyncio.run(_collect(args.patient_ids))
+    responses = asyncio.run(_collect(args.patient_ids, args.query_number))
     valid  = [r for r in responses if not r["error"] and r["answer"]]
     errors = [r for r in responses if r["error"]]
     print(f"  OK: {len(valid)}  Errors: {len(errors)}")
