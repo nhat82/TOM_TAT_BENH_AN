@@ -9,6 +9,10 @@ Usage (from backend/):
   python -m evaluation.run_eval --patient-ids BN0003 BN0064
   python -m evaluation.run_eval -query_number 1
   python -m evaluation.run_eval --patient-ids BN0003 --query-number 1 (the index applies after the patient filter)
+
+Reports written:
+  evaluation/eval_report.json   — full machine-readable results
+  evaluation/eval_report.md     — human-readable performance + quality report
 """
 
 from __future__ import annotations
@@ -42,6 +46,7 @@ if not _api_key:
 
 # ── project imports ───────────────────────────────────────────────────────────
 from evaluation.acronym_detector import check_acronyms
+from evaluation.metrics_collector import MetricsCollector, QueryMetrics, estimate_cost_usd
 from evaluation.sample_queries import SAMPLE_QUERIES
 
 # ── Gemini sync client ────────────────────────────────────────────────────────
@@ -51,6 +56,7 @@ from google.genai import types as _genai_types
 # Free tier for gemini-2.0-flash-lite: 15 RPM / 1 000 RPD / 250 K TPM
 # Keeping judge on a different model from the collection LLM (2.5-flash-lite)
 # so they draw from separate quota pools.
+_PIPELINE_MODEL       = os.getenv("GEMINI_MODEL",       "gemini-3.1-flash-lite")
 _JUDGE_MODEL          = os.getenv("GEMINI_JUDGE_MODEL", "gemini-3.1-flash-lite")
 _JUDGE_WORKERS        = 1    # parallel judge threads (stay ≤ 15 RPM with 2 workers)
 _ERROR_RETRIES        = 3    # max retries for non-rate-limit errors before infra_failure
@@ -59,6 +65,7 @@ _COLLECT_SEM          = 1    # max concurrent chat-graph invocations
 _COLLECT_RETRIES      = 3    # per-query retry attempts (non-rate-limit)
 
 _client: _genai.Client | None = None
+_collector: MetricsCollector | None = None
 
 
 def _get_client() -> _genai.Client:
@@ -74,11 +81,14 @@ def _score_all(context: str, question: str, answer: str) -> dict:
 
     Return shape
     ────────────
-    ok               {"status":"ok",                "faithfulness":f, "answer_relevancy":f, "citation_accuracy":f, "wait_time":0}
-    rate_limit_timeout {"status":"rate_limit_timeout","faithfulness":None,...,              "wait_time": <total_s>}
-    infra_failure    {"status":"infra_failure",     "faithfulness":None,...,              "wait_time": <total_s>}
-    model_failure    {"status":"model_failure",     "faithfulness":0.0,...,              "wait_time": <total_s>}
-        ↳ only when the model returned malformed / irrelevant / hallucinated output
+    ok               {"status":"ok",                "faithfulness":f, "answer_relevancy":f, "citation_accuracy":f, "wait_time":0,
+                      "judge_input_tokens":n, "judge_output_tokens":n}
+    rate_limit_timeout {"status":"rate_limit_timeout","faithfulness":None,..., "wait_time": <total_s>,
+                        "judge_input_tokens":0, "judge_output_tokens":0}
+    infra_failure    {"status":"infra_failure",     "faithfulness":None,..., "wait_time": <total_s>,
+                      "judge_input_tokens":0, "judge_output_tokens":0}
+    model_failure    {"status":"model_failure",     "faithfulness":0.0,..., "wait_time": <total_s>,
+                      "judge_input_tokens":n, "judge_output_tokens":n}
 
     Rate-limit policy (free tier: 15 RPM / 1 000 RPD / 250 K TPM)
     ───────────────────────────────────────────────────────────────
@@ -106,13 +116,12 @@ def _score_all(context: str, question: str, answer: str) -> dict:
     )
 
     def _parse_yn(line: str) -> float | None:
-        """Return 1.0/0.0 for valid YES/NO, None for anything else (model_failure)."""
         word = re.split(r"[\s:]+", line.lower())[-1].rstrip(".")
         if word in {"yes", "có", "1", "true"}:
             return 1.0
         if word in {"no", "không", "0", "false"}:
             return 0.0
-        return None  # malformed — model did not follow instructions
+        return None
 
     total_rl_wait = 0.0
     error_count   = 0
@@ -131,26 +140,34 @@ def _score_all(context: str, question: str, answer: str) -> dict:
             raw = resp.text.strip()
             print(f"    [judge] call={call_n} raw={raw!r}")
 
-            lines = [ln.strip() for ln in raw.splitlines() if ln.strip()]
+            # extract token usage if available
+            um       = getattr(resp, "usage_metadata", None)
+            j_in     = int(getattr(um, "prompt_token_count",     0) or 0)
+            j_out    = int(getattr(um, "candidates_token_count", 0) or 0)
+
+            lines  = [ln.strip() for ln in raw.splitlines() if ln.strip()]
             scores = [_parse_yn(lines[i]) if i < len(lines) else None for i in range(3)]
 
             if any(s is None for s in scores):
-                # Model returned something other than YES/NO — real evaluation failure
                 print(f"    [judge] model_failure: unparseable output {raw!r}")
                 return {
-                    "status":           "model_failure",
-                    "faithfulness":     0.0,
-                    "answer_relevancy": 0.0,
-                    "citation_accuracy":0.0,
-                    "wait_time":        total_rl_wait,
+                    "status":            "model_failure",
+                    "faithfulness":      0.0,
+                    "answer_relevancy":  0.0,
+                    "citation_accuracy": 0.0,
+                    "wait_time":         total_rl_wait,
+                    "judge_input_tokens":  j_in,
+                    "judge_output_tokens": j_out,
                 }
 
             return {
-                "status":           "ok",
-                "faithfulness":     scores[0],
-                "answer_relevancy": scores[1],
-                "citation_accuracy":scores[2],
-                "wait_time":        total_rl_wait,
+                "status":            "ok",
+                "faithfulness":      scores[0],
+                "answer_relevancy":  scores[1],
+                "citation_accuracy": scores[2],
+                "wait_time":         total_rl_wait,
+                "judge_input_tokens":  j_in,
+                "judge_output_tokens": j_out,
             }
 
         except Exception as exc:
@@ -158,17 +175,19 @@ def _score_all(context: str, question: str, answer: str) -> dict:
             is_rate_limit = "429" in msg or "RESOURCE_EXHAUSTED" in msg
 
             if is_rate_limit:
-                m = re.search(r"retry in (\d+(?:\.\d+)?)s", msg)
+                m    = re.search(r"retry in (\d+(?:\.\d+)?)s", msg)
                 wait = float(m.group(1)) + 1 if m else 60
                 total_rl_wait += wait
                 if total_rl_wait > _MAX_RATE_LIMIT_WAIT:
                     print(f"    [judge] rate_limit_timeout after {total_rl_wait:.0f}s total wait")
                     return {
-                        "status":           "rate_limit_timeout",
-                        "faithfulness":     None,
-                        "answer_relevancy": None,
-                        "citation_accuracy":None,
-                        "wait_time":        total_rl_wait,
+                        "status":            "rate_limit_timeout",
+                        "faithfulness":      None,
+                        "answer_relevancy":  None,
+                        "citation_accuracy": None,
+                        "wait_time":         total_rl_wait,
+                        "judge_input_tokens":  0,
+                        "judge_output_tokens": 0,
                     }
                 print(f"    [judge] call={call_n} rate-limit — "
                       f"waiting {wait:.0f}s (total={total_rl_wait:.0f}s / {_MAX_RATE_LIMIT_WAIT}s)")
@@ -181,11 +200,13 @@ def _score_all(context: str, question: str, answer: str) -> dict:
                 if error_count >= _ERROR_RETRIES:
                     print(f"    [judge] infra_failure after {error_count} errors")
                     return {
-                        "status":           "infra_failure",
-                        "faithfulness":     None,
-                        "answer_relevancy": None,
-                        "citation_accuracy":None,
-                        "wait_time":        total_rl_wait,
+                        "status":            "infra_failure",
+                        "faithfulness":      None,
+                        "answer_relevancy":  None,
+                        "citation_accuracy": None,
+                        "wait_time":         total_rl_wait,
+                        "judge_input_tokens":  0,
+                        "judge_output_tokens": 0,
                     }
                 time.sleep(wait)
 
@@ -204,13 +225,19 @@ async def _run_single(patient_id: str, question: str, thread_id: str) -> dict:
         await asyncio.sleep(60)
         try:
             print(f"[gemini] requesting model={os.getenv('GEMINI_MODEL', 'gemini-3.1-flash-lite')}")
-            result = await chat_graph.ainvoke(state, config=config)
-            return {"answer": result.get("answer", ""), "chunks": result.get("chunks", [])}
+            t_infer = time.perf_counter()
+            result  = await chat_graph.ainvoke(state, config=config)
+            inference_s = time.perf_counter() - t_infer
+            return {
+                "answer":      result.get("answer", ""),
+                "chunks":      result.get("chunks", []),
+                "inference_s": round(inference_s, 3),
+            }
         except Exception as exc:
             msg = str(exc)
             is_rate_limit = "429" in msg or "RESOURCE_EXHAUSTED" in msg
             if is_rate_limit:
-                m = re.search(r"retry in (\d+(?:\.\d+)?)s", msg)
+                m    = re.search(r"retry in (\d+(?:\.\d+)?)s", msg)
                 wait = float(m.group(1)) + 1 if m else 60
                 print(f"    [collect] {patient_id} call={call_n} rate-limit — waiting {wait:.0f}s")
                 await asyncio.sleep(wait)
@@ -228,21 +255,57 @@ async def _collect(patient_filter: list[str] | None, query_number: int | None = 
     if query_number is not None:
         queries = [queries[query_number - 1]]
 
-    ts  = str(int(time.time()))
-    sem = asyncio.Semaphore(_COLLECT_SEM)
-    out = [None] * len(queries)  # preserve order
+    ts    = str(int(time.time()))
+    sem   = asyncio.Semaphore(_COLLECT_SEM)
+    out   = [None] * len(queries)
+    first_response_time: list[float] = []  # filled once by the first completed query
 
     async def _one(i: int, q: dict) -> None:
         async with sem:
             print(f"  [{i+1}/{len(queries)}] {q['patient_id']}: {q['question'][:65]}...")
+            t_total = time.perf_counter()
             try:
-                r = await _run_single(q["patient_id"], q["question"], f"{q['patient_id']}_eval_{ts}_{i}")
-                out[i] = {**q, "answer": r["answer"], "contexts": r["chunks"], "error": None}
+                r           = await _run_single(q["patient_id"], q["question"],
+                                                f"{q['patient_id']}_eval_{ts}_{i}")
+                total_s     = time.perf_counter() - t_total
+                answer      = r["answer"]
+                chunks      = r["chunks"]
+                inference_s = r.get("inference_s", 0.0)
+
+                # token estimates (~4 chars per token — no tokenizer access)
+                ctx_chars        = sum(len(c) for c in chunks)
+                input_tok_est    = (len(q["question"]) + ctx_chars) // 4
+                output_tok_est   = len(answer) // 4
+
+                if not first_response_time:
+                    first_response_time.append(total_s)
+
+                out[i] = {
+                    **q,
+                    "answer":           answer,
+                    "contexts":         chunks,
+                    "error":            None,
+                    "inference_s":      inference_s,
+                    "total_latency_s":  round(total_s, 3),
+                    "input_tokens_est": input_tok_est,
+                    "output_tokens_est":output_tok_est,
+                }
             except Exception as exc:
                 print(f"    ERROR {q['patient_id']}: {exc}")
-                out[i] = {**q, "answer": "", "contexts": [], "error": str(exc)}
+                out[i] = {
+                    **q,
+                    "answer":           "",
+                    "contexts":         [],
+                    "error":            str(exc),
+                    "inference_s":      0.0,
+                    "total_latency_s":  round(time.perf_counter() - t_total, 3),
+                    "input_tokens_est": 0,
+                    "output_tokens_est":0,
+                }
 
     await asyncio.gather(*(_one(i, q) for i, q in enumerate(queries)))
+    if first_response_time and _collector is not None:
+        _collector.set_cold_start(first_response_time[0])
     return out  # type: ignore[return-value]
 
 
@@ -273,25 +336,26 @@ def _acronym_report(responses: list[dict]) -> dict:
 # ── LLM-as-judge scoring ──────────────────────────────────────────────────────
 
 def _score_one(r: dict) -> dict:
-    """Score a single response (runs in a worker thread). One Gemini call for all 3 metrics."""
     ctx = "\n\n".join(r["contexts"]) if r["contexts"] else "(no context retrieved)"
     print(f"    [ctx] {r['patient_id']} chunks={len(r['contexts'])} "
           f"chars={len(ctx)}  preview={ctx[:80]!r}")
 
     result = _score_all(ctx, r["question"], r["answer"])
     return {
-        "patient_id":        r["patient_id"],
-        "category":          r["category"],
-        "question":          r["question"],
-        "answer":            r["answer"][:300],
-        "context_chunks":    len(r["contexts"]),
-        "context_chars":     len(ctx),
-        "context_preview":   ctx[:200],
-        "judge_status":      result["status"],
-        "faithfulness":      result["faithfulness"],
-        "answer_relevancy":  result["answer_relevancy"],
-        "citation_accuracy": result["citation_accuracy"],
-        "wait_time":         result["wait_time"],
+        "patient_id":          r["patient_id"],
+        "category":            r["category"],
+        "question":            r["question"],
+        "answer":              r["answer"][:300],
+        "context_chunks":      len(r["contexts"]),
+        "context_chars":       len(ctx),
+        "context_preview":     ctx[:200],
+        "judge_status":        result["status"],
+        "faithfulness":        result["faithfulness"],
+        "answer_relevancy":    result["answer_relevancy"],
+        "citation_accuracy":   result["citation_accuracy"],
+        "wait_time":           result["wait_time"],
+        "judge_input_tokens":  result["judge_input_tokens"],
+        "judge_output_tokens": result["judge_output_tokens"],
     }
 
 
@@ -304,7 +368,7 @@ def _llm_scores(responses: list[dict]) -> dict:
         future_to_idx = {pool.submit(_score_one, r): i for i, r in enumerate(valid)}
         for fut in as_completed(future_to_idx):
             done += 1
-            idx = future_to_idx[fut]
+            idx  = future_to_idx[fut]
             per_query[idx] = fut.result()
             q = per_query[idx]
             print(f"  [{done}/{len(valid)}] {q['patient_id']} / {q['category']} "
@@ -312,8 +376,14 @@ def _llm_scores(responses: list[dict]) -> dict:
 
     per_query = [q for q in per_query if q is not None]
 
-    # Only "ok" and "model_failure" carry numeric scores — infra/rate-limit
-    # failures are excluded from averages so they don't drag numbers down.
+    # push judge token counts into the collector
+    if _collector is not None:
+        for q in per_query:
+            _collector.update_judge_tokens(
+                q["patient_id"], q["question"][:65],
+                q["judge_input_tokens"], q["judge_output_tokens"],
+            )
+
     scoreable = [q for q in per_query if q["judge_status"] in {"ok", "model_failure"}]
 
     def _avg(key: str) -> float | None:
@@ -335,6 +405,241 @@ def _llm_scores(responses: list[dict]) -> dict:
     }
 
 
+# ── markdown report ───────────────────────────────────────────────────────────
+
+def _na(v) -> str:
+    if v is None:
+        return "N/A"
+    if isinstance(v, float):
+        return f"{v:.3f}"
+    return str(v)
+
+
+def _fmt_s(v) -> str:
+    return f"{v:.2f} s" if v is not None else "N/A"
+
+
+def _fmt_mb(v) -> str:
+    if v is None:
+        return "N/A"
+    if v >= 1024:
+        return f"{v/1024:.2f} GB ({v:.0f} MB)"
+    return f"{v:.1f} MB"
+
+
+def _write_markdown_report(
+    report: dict,
+    perf: dict,
+    output_path: Path,
+) -> None:
+    ts       = report["timestamp"]
+    metrics  = report["metrics"]
+    sc       = metrics["status_counts"]
+    lat      = perf["latency"]
+    tok      = perf["tokens"]
+    stages   = perf.get("stages", {})
+
+    pipeline_cost = estimate_cost_usd(
+        _PIPELINE_MODEL,
+        tok["pipeline_input_est"],
+        tok["pipeline_output_est"],
+    )
+    judge_cost = estimate_cost_usd(
+        _JUDGE_MODEL,
+        tok["judge_input"],
+        tok["judge_output"],
+    )
+    total_cost = round(pipeline_cost + judge_cost, 6)
+
+    lines: list[str] = []
+    a = lines.append
+
+    a("# Medical RAG — Performance & Quality Report")
+    a("")
+    a(f"**Generated:** {ts}  ")
+    a(f"**Pipeline model:** `{_PIPELINE_MODEL}`  ")
+    a(f"**Judge model:** `{_JUDGE_MODEL}`  ")
+    a(f"**Queries:** {report['queries_total']} total · {report['queries_valid']} valid "
+      f"· {report['queries_errored']} errored  ")
+    a(f"**Error rate:** {perf['error_rate']:.1%}")
+    a("")
+    a("---")
+    a("")
+
+    # ── 1. Quality ────────────────────────────────────────────────────────────
+    a("## 1. Quality Metrics")
+    a("")
+    a("| Metric | Score | Queries Scored |")
+    a("|--------|------:|---------------:|")
+    a(f"| Faithfulness      | {_na(metrics['faithfulness'])}      | {metrics['scored_n']} |")
+    a(f"| Answer Relevancy  | {_na(metrics['answer_relevancy'])}  | {metrics['scored_n']} |")
+    a(f"| Citation Accuracy | {_na(metrics['citation_accuracy'])} | {metrics['scored_n']} |")
+    a(f"| Acronym Compliance | {metrics['acronym_score']:.3f}     | {metrics['scored_n']} |")
+    a("")
+    a("### Judge Call Status")
+    a("")
+    a("| Status | Count |")
+    a("|--------|------:|")
+    for s in ("ok", "model_failure", "rate_limit_timeout", "infra_failure"):
+        a(f"| {s} | {sc.get(s, 0)} |")
+    a("")
+    a("---")
+    a("")
+
+    # ── 2. Latency ────────────────────────────────────────────────────────────
+    a("## 2. Latency & Throughput")
+    a("")
+    a("> **Inference latency** = `ainvoke` wall-time only (excludes rate-limit sleep).  ")
+    a("> **End-to-end latency** = total wall-time per query (includes sleeps).  ")
+    a("> **TTFT** = not available for non-streaming invocations.")
+    a("")
+    a("| Metric | Inference | End-to-End |")
+    a("|--------|----------:|-----------:|")
+    a(f"| Average | {_fmt_s(lat.get('inference_avg_s'))} | {_fmt_s(lat.get('total_avg_s'))} |")
+    a(f"| P50     | {_fmt_s(lat.get('inference_p50_s'))} | {_fmt_s(lat.get('total_p50_s'))} |")
+    a(f"| P95     | {_fmt_s(lat.get('inference_p95_s'))} | {_fmt_s(lat.get('total_p95_s'))} |")
+    a(f"| Min     | {_fmt_s(lat.get('inference_min_s'))} | {_fmt_s(lat.get('total_min_s'))} |")
+    a(f"| Max     | {_fmt_s(lat.get('inference_max_s'))} | {_fmt_s(lat.get('total_max_s'))} |")
+    a("")
+    a("| Metric | Value |")
+    a("|--------|------:|")
+    tput = perf.get("throughput_rps")
+    a(f"| Batch Throughput | {f'{tput:.4f} req/s' if tput else 'N/A'} |")
+    cs = perf.get("cold_start_s")
+    a(f"| Cold Start (first response) | {_fmt_s(cs)} |")
+    a(f"| TTFT | N/A (non-streaming) |")
+    a("")
+    a("---")
+    a("")
+
+    # ── 3. Token usage & cost ─────────────────────────────────────────────────
+    a("## 3. Token Usage & Estimated Cost")
+    a("")
+    a("| Layer | Model | Input Tokens | Output Tokens | Est. Cost (USD) |")
+    a("|-------|-------|-------------:|--------------:|----------------:|")
+    a(f"| Pipeline (est.) | `{_PIPELINE_MODEL}` | "
+      f"{tok['pipeline_input_est']:,} | {tok['pipeline_output_est']:,} | ${pipeline_cost:.6f} |")
+    a(f"| Judge | `{_JUDGE_MODEL}` | "
+      f"{tok['judge_input']:,} | {tok['judge_output']:,} | ${judge_cost:.6f} |")
+    a(f"| **Total** | | "
+      f"**{tok['pipeline_input_est'] + tok['judge_input']:,}** | "
+      f"**{tok['pipeline_output_est'] + tok['judge_output']:,}** | **${total_cost:.6f}** |")
+    a("")
+    a("> Pipeline token counts are estimates (~4 chars/token; no tokenizer access).  ")
+    a("> Judge token counts are exact values from the Gemini API usage metadata.")
+    a("")
+    a("---")
+    a("")
+
+    # ── 4. System resources ───────────────────────────────────────────────────
+    a("## 4. System Resource Usage")
+    a("")
+    gpu_available = perf.get("gpu_available", False)
+    gpu_name      = perf.get("gpu_name")
+    gpu_vram      = perf.get("gpu_vram_total_mb")
+    if gpu_available:
+        a(f"> **GPU detected:** {gpu_name}  ")
+        a(f"> **Total VRAM:** {_fmt_mb(gpu_vram)}")
+    else:
+        a("> **GPU:** not detected (pynvml unavailable or no NVIDIA GPU)")
+    a("")
+
+    for stage_name, sd in stages.items():
+        a(f"### Stage: `{stage_name}`")
+        a(f"**Duration:** {sd['duration_s']:.2f} s")
+        a("")
+        a("| Resource | Average | Peak |")
+        a("|----------|--------:|-----:|")
+        a(f"| CPU | {_na(sd.get('cpu_avg_pct'))}% | {_na(sd.get('cpu_peak_pct'))}% |")
+        a(f"| RAM | {_fmt_mb(sd.get('ram_avg_mb'))} | {_fmt_mb(sd.get('ram_peak_mb'))} |")
+        if gpu_available:
+            a(f"| GPU Utilization | {_na(sd.get('gpu_util_avg_pct'))}% | {_na(sd.get('gpu_util_peak_pct'))}% |")
+            a(f"| GPU VRAM used | — | {_fmt_mb(sd.get('gpu_vram_peak_mb'))} |")
+        else:
+            a("| GPU Utilization | N/A | N/A |")
+            a("| GPU VRAM | N/A | N/A |")
+        a("")
+        a("| I/O | Read / Recv | Write / Sent |")
+        a("|-----|------------:|-------------:|")
+        a(f"| Disk    | {sd.get('disk_read_mb', 0):.2f} MB | {sd.get('disk_write_mb', 0):.2f} MB |")
+        a(f"| Network | {sd.get('net_recv_mb', 0):.2f} MB recv | {sd.get('net_sent_mb', 0):.2f} MB sent |")
+        a("")
+
+    a("---")
+    a("")
+
+    # ── 5. Per-query table ────────────────────────────────────────────────────
+    a("## 5. Per-Query Performance")
+    a("")
+    a("| # | Patient | Infer (s) | Tok/s | In Tok (est.) | Out Tok (est.) | Judge In | Judge Out | Faith. | Relev. | Cit. | Judge Status |")
+    a("|---|---------|----------:|------:|--------------:|---------------:|---------:|----------:|-------:|-------:|-----:|-------------|")
+
+    pq_perf  = {(p["patient_id"], p["question_preview"][:65]): p for p in perf["per_query"]}
+    pq_score = {(p["patient_id"], p["question"][:65]): p      for p in report["per_query"]}
+
+    all_patients = sorted(set(p["patient_id"] for p in report["per_query"]))
+    row_n = 0
+    for pid in all_patients:
+        for score_entry in [p for p in report["per_query"] if p["patient_id"] == pid]:
+            row_n += 1
+            key    = (pid, score_entry["question"][:65])
+            pdata  = pq_perf.get(key, {})
+            inf_s  = pdata.get("inference_latency_s", 0.0)
+            tps    = pdata.get("tokens_per_second")
+            in_t   = pdata.get("input_tokens_est", 0)
+            out_t  = pdata.get("output_tokens_est", 0)
+            j_in   = score_entry.get("judge_input_tokens", 0)
+            j_out  = score_entry.get("judge_output_tokens", 0)
+            faith  = _na(score_entry.get("faithfulness"))
+            relev  = _na(score_entry.get("answer_relevancy"))
+            cit    = _na(score_entry.get("citation_accuracy"))
+            jstat  = score_entry.get("judge_status", "—")
+            tps_s  = f"{tps:.1f}" if tps else "N/A"
+            a(f"| {row_n} | {pid} | {inf_s:.2f} | {tps_s} | "
+              f"{in_t:,} | {out_t:,} | {j_in:,} | {j_out:,} | "
+              f"{faith} | {relev} | {cit} | {jstat} |")
+
+    a("")
+    a("---")
+    a("")
+
+    # ── 6. Errors ─────────────────────────────────────────────────────────────
+    a("## 6. Errors")
+    a("")
+    if report["errors"]:
+        a("| Patient | Question | Error |")
+        a("|---------|----------|-------|")
+        for e in report["errors"]:
+            q_preview = e["question"][:60].replace("|", "\\|")
+            err_msg   = e["error"][:100].replace("|", "\\|")
+            a(f"| {e['patient_id']} | {q_preview} | `{err_msg}` |")
+    else:
+        a("_No errors._")
+    a("")
+    a("---")
+    a("")
+
+    # ── 7. Acronym violations ─────────────────────────────────────────────────
+    a("## 7. Acronym Violations")
+    a("")
+    if report["acronym_failures"]:
+        a("| Patient | Question | Violations |")
+        a("|---------|----------|------------|")
+        for f in report["acronym_failures"]:
+            viols = "; ".join(
+                f"{v['acronym']} ({v['full_term']})" for v in f["violations"]
+            )
+            a(f"| {f['patient_id']} | {f['question'][:60]} | {viols} |")
+    else:
+        a("_No acronym violations detected._")
+    a("")
+    a("---")
+    a("")
+    a("*Report generated by the Medical RAG Evaluation Suite.*")
+
+    output_path.write_text("\n".join(lines), encoding="utf-8")
+
+
 # ── CLI ───────────────────────────────────────────────────────────────────────
 
 def _parse_args() -> argparse.Namespace:
@@ -350,7 +655,13 @@ def _parse_args() -> argparse.Namespace:
 
 
 def main() -> None:
+    global _collector
+
     args = _parse_args()
+    md_output = args.output.with_suffix(".md")
+
+    _collector = MetricsCollector()
+    _collector.start()
 
     print("=" * 60)
     print("  Medical RAG — Evaluation")
@@ -359,7 +670,9 @@ def main() -> None:
 
     # 1. Collect — clean asyncio.run(), no nest_asyncio in scope
     print("\n[1/3] Running queries through chat pipeline...")
-    responses = asyncio.run(_collect(args.patient_ids, args.query_number))
+    with _collector.stage("collect"):
+        responses = asyncio.run(_collect(args.patient_ids, args.query_number))
+
     valid  = [r for r in responses if not r["error"] and r["answer"]]
     errors = [r for r in responses if r["error"]]
     print(f"  OK: {len(valid)}  Errors: {len(errors)}")
@@ -367,7 +680,21 @@ def main() -> None:
         print(f"  ! {e['patient_id']}: {e['error'][:120]}")
 
     if not valid:
+        _collector.stop()
         sys.exit("No valid responses — aborting.")
+
+    # register per-query metrics (judge tokens filled in later by _llm_scores)
+    for r in responses:
+        _collector.record_query(QueryMetrics(
+            patient_id          = r["patient_id"],
+            question_preview    = r["question"][:65],
+            total_latency_s     = r.get("total_latency_s", 0.0),
+            inference_latency_s = r.get("inference_s", 0.0),
+            ttft_s              = None,  # non-streaming
+            input_tokens_est    = r.get("input_tokens_est", 0),
+            output_tokens_est   = r.get("output_tokens_est", 0),
+            error               = r.get("error"),
+        ))
 
     # 2. Acronym check (rule-based, free)
     print("\n[2/3] Checking Vietnamese medical acronyms...")
@@ -379,9 +706,14 @@ def main() -> None:
 
     print("\n Cooling down before calling judge")
     time.sleep(60)
+
     # 3. LLM-as-judge (synchronous Gemini calls)
     print("\n[3/3] Running LLM-as-judge metrics...")
-    scores = _llm_scores(responses)
+    with _collector.stage("judge"):
+        scores = _llm_scores(responses)
+
+    _collector.stop()
+    perf = _collector.summary()
 
     # 4. Summary
     def _fmt(v: float | None) -> str:
@@ -400,6 +732,13 @@ def main() -> None:
     print(f"  model_failure:      {sc.get('model_failure', 0)}")
     print(f"  rate_limit_timeout: {sc.get('rate_limit_timeout', 0)}")
     print(f"  infra_failure:      {sc.get('infra_failure', 0)}")
+    lat = perf["latency"]
+    tok = perf["tokens"]
+    print(f"  ── performance ──")
+    print(f"  Inference avg:      {lat.get('inference_avg_s', 'N/A')} s")
+    print(f"  End-to-end avg:     {lat.get('total_avg_s', 'N/A')} s")
+    print(f"  Total tokens:       {tok['total']:,}")
+    print(f"  Error rate:         {perf['error_rate']:.1%}")
     print("=" * 60)
 
     # 5. JSON report
@@ -423,9 +762,14 @@ def main() -> None:
             {"patient_id": r["patient_id"], "question": r["question"], "error": r["error"]}
             for r in errors
         ],
+        "performance": perf,
     }
     args.output.write_text(json.dumps(report, ensure_ascii=False, indent=2))
-    print(f"\nReport saved → {args.output}")
+    print(f"\nJSON report  → {args.output}")
+
+    # 6. Markdown report
+    _write_markdown_report(report, perf, md_output)
+    print(f"MD  report  → {md_output}")
 
 
 if __name__ == "__main__":
