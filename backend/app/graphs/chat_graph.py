@@ -34,7 +34,7 @@ from langgraph.checkpoint.memory import MemorySaver
 from langgraph.graph import END, START, StateGraph
 
 from app.services.chroma import get_collection
-from app.services.llm import get_llm
+from app.services.llm import get_chat_llm
 
 log = logging.getLogger(__name__)
 
@@ -124,7 +124,7 @@ def retrieve_chunks(state: ChatState) -> dict:
 
 async def generate_answer(state: ChatState) -> dict:
     context = "\n\n".join(state["chunks"])
-    llm = get_llm()
+    llm = get_chat_llm()
 
     messages = [
         SystemMessage(content=(

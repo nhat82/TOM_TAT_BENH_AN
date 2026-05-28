@@ -29,7 +29,7 @@ from langchain_core.messages import HumanMessage, SystemMessage
 from langgraph.graph import END, START, StateGraph
 
 from app.services.chroma import get_collection
-from app.services.llm import get_llm
+from app.services.llm import get_summary_llm
 
 log = logging.getLogger(__name__)
 
@@ -120,7 +120,7 @@ def build_timeline(state: SummaryState) -> dict:
     patient's chunks.  Returns timeline as list[dict].
     """
     context = "\n\n".join(state["chunks"])
-    llm = get_llm()
+    llm = get_summary_llm()
 
     system = SystemMessage(content=(
         "Bạn là trợ lý y tế. Hãy trích xuất danh sách sự kiện theo thời gian "
@@ -168,7 +168,7 @@ def draft_summary(state: SummaryState) -> dict:
     """
     context = "\n\n".join(state["chunks"])
     timeline_text = json.dumps(state["timeline"], ensure_ascii=False, indent=2)
-    llm = get_llm()
+    llm = get_summary_llm()
 
     system = SystemMessage(content=(
         "Bạn là bác sĩ viết tóm tắt bệnh án. "
@@ -217,7 +217,7 @@ async def refine_summary(
              oldest first. Lets the LLM understand what has already been done.
     chunks:  original document sections for grounding (optional).
     """
-    llm = get_llm()
+    llm = get_summary_llm()
 
     history_section = ""
     if history:
