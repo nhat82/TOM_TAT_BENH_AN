@@ -6,7 +6,9 @@ export default function PatientSummaryPanel({ patientId: initialPatientId }: { p
   const [patientId, setPatientId] = useState(initialPatientId ?? '')
   const [summary, setSummary] = useState('')
   const [refineInput, setRefineInput] = useState('')
+  const [refineHistory, setRefineHistory] = useState<{ instruction: string; result_summary: string }[]>([])
   const [isGenerating, setIsGenerating] = useState(false)
+  const [isRefining, setIsRefining] = useState(false)
   const [error, setError] = useState('')
 
   async function handleGenerate() {
@@ -26,6 +28,7 @@ export default function PatientSummaryPanel({ patientId: initialPatientId }: { p
       }
       const data = await res.json()
       setSummary(data.summary ?? '')
+      setRefineHistory([])
     } catch {
       setError('Lỗi mạng — máy chủ có đang chạy không?')
     } finally {
@@ -37,13 +40,13 @@ export default function PatientSummaryPanel({ patientId: initialPatientId }: { p
     if (!refineInput.trim() || !summary) return
     const prompt = refineInput
     setRefineInput('')
-    setIsGenerating(true)
+    setIsRefining(true)
     setError('')
     try {
       const res = await fetch('/api/refine', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prompt, summary, ma_bn_an: patientId.trim() }),
+        body: JSON.stringify({ prompt, summary, ma_bn_an: patientId.trim(), history: refineHistory }),
       })
       if (!res.ok) {
         const detail = await res.json().catch(() => ({ detail: res.statusText }))
@@ -51,11 +54,13 @@ export default function PatientSummaryPanel({ patientId: initialPatientId }: { p
         return
       }
       const data = await res.json()
-      setSummary(data.summary ?? summary)
+      const refined = data.summary ?? summary
+      setRefineHistory(h => [...h, { instruction: prompt, result_summary: refined }])
+      setSummary(refined)
     } catch {
-      setError('Chức năng tinh chỉnh chưa khả dụng.')
+      setError('Lỗi mạng — máy chủ có đang chạy không?')
     } finally {
-      setIsGenerating(false)
+      setIsRefining(false)
     }
   }
 
@@ -82,13 +87,13 @@ export default function PatientSummaryPanel({ patientId: initialPatientId }: { p
 
         <button
           onClick={handleGenerate}
-          disabled={isGenerating || !patientId.trim()}
+          disabled={isGenerating || isRefining || !patientId.trim()}
           className="w-full py-3 px-4 bg-primary text-white rounded-lg text-title-sm font-semibold hover:bg-primary/90 transition-colors flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
         >
           <span className="material-symbols-outlined text-[20px]">
-            {isGenerating ? 'hourglass_empty' : 'auto_awesome'}
+            {isGenerating || isRefining ? 'hourglass_empty' : 'auto_awesome'}
           </span>
-          {isGenerating ? 'Đang tạo…' : 'Tạo tóm tắt bệnh án'}
+          {isGenerating ? 'Đang tạo…' : isRefining ? 'Đang tinh chỉnh…' : 'Tạo tóm tắt bệnh án'}
         </button>
 
         {error && (
@@ -122,10 +127,12 @@ export default function PatientSummaryPanel({ patientId: initialPatientId }: { p
               />
               <button
                 onClick={handleRefine}
-                disabled={isGenerating || !summary}
+                disabled={isGenerating || isRefining || !summary}
                 className="text-primary hover:scale-110 transition-transform disabled:opacity-40"
               >
-                <span className="material-symbols-outlined">send</span>
+                <span className="material-symbols-outlined">
+                  {isRefining ? 'hourglass_empty' : 'send'}
+                </span>
               </button>
             </div>
           </div>

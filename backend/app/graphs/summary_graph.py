@@ -133,7 +133,14 @@ def build_timeline(state: SummaryState) -> dict:
     human = HumanMessage(content=f"Hồ sơ bệnh nhân:\n{context}")
 
     response = llm.invoke([system, human])
-    raw = response.content.strip()
+    content = response.content
+    if isinstance(content, list):
+        # Join all text pieces together, ignoring non-text blocks if they exist
+        raw = "".join([block.get("text", "") if isinstance(block, dict) else str(block) for block in content]).strip()
+    else:
+        # If it's already a string, strip it normally
+        raw = content.strip()
+    # raw = response.content.strip()
 
     # Strip markdown code fences if present
     if raw.startswith("```"):
@@ -181,10 +188,71 @@ def draft_summary(state: SummaryState) -> dict:
     ))
 
     response = llm.invoke([system, human])
-    draft = response.content.strip()
-
+    
+    content = response.content
+    if isinstance(content, list):
+        # Join all text pieces together, ignoring non-text blocks if they exist
+        draft = "".join([block.get("text", "") if isinstance(block, dict) else str(block) for block in content]).strip()
+    else:
+        # If it's already a string, strip it normally
+        draft = content.strip()
+    
     log.info("draft_summary: %d character(s) generated.", len(draft))
     return {"draft": draft}
+
+
+# ── refine ────────────────────────────────────────────────────────────────────
+
+async def refine_summary(
+    current_summary: str,
+    instruction: str,
+    chunks: list[str] | None = None,
+    history: list[dict] | None = None,
+) -> str:
+    """
+    Refine an existing summary based on a user instruction.
+
+    history: list of {instruction, result_summary} from prior refinement turns,
+             oldest first. Lets the LLM understand what has already been done.
+    chunks:  original document sections for grounding (optional).
+    """
+    llm = get_llm()
+
+    history_section = ""
+    if history:
+        lines = ["Lịch sử chỉnh sửa trước đó (từ cũ đến mới):"]
+        for i, entry in enumerate(history, 1):
+            lines.append(f"  [{i}] Yêu cầu: {entry.get('instruction', '')}")
+        history_section = "\n" + "\n".join(lines)
+
+    context_section = ""
+    if chunks:
+        context_section = (
+            "\n\nHồ sơ gốc (để tham chiếu nếu cần):\n"
+            + "\n\n".join(chunks[:6])
+        )
+
+    system = SystemMessage(content=(
+        "Bạn là bác sĩ chỉnh sửa tóm tắt bệnh án. "
+        "Hãy chỉnh sửa tóm tắt bệnh án hiện tại theo đúng yêu cầu của người dùng. "
+        "Giữ nguyên các phần không cần thay đổi. "
+        "Chỉ trả về bản tóm tắt đã chỉnh sửa, không giải thích thêm."
+    ))
+    human = HumanMessage(content=(
+        f"Tóm tắt hiện tại:\n{current_summary}"
+        f"{history_section}\n\n"
+        f"Yêu cầu chỉnh sửa mới: {instruction}"
+        f"{context_section}"
+    ))
+
+    response = await llm.ainvoke([system, human])
+    content = response.content
+    if isinstance(content, list):
+        return "".join(
+            block.get("text", "") if isinstance(block, dict) else str(block)
+            for block in content
+        ).strip()
+    return content.strip()
 
 
 # ── graph factory ─────────────────────────────────────────────────────────────
