@@ -15,11 +15,13 @@ from __future__ import annotations
 import logging
 
 from fastapi import APIRouter, HTTPException
+from fastapi.responses import Response
 from pydantic import BaseModel, Field
 
 from app.graphs.summary_graph import summary_graph, refine_summary
 from app.graphs.summary_graph import _split_into_chunks, _rerank_chunks
 from app.services.chroma import get_collection
+from app.services.docx_export import build_docx
 
 log = logging.getLogger(__name__)
 router = APIRouter(prefix="/api", tags=["summary"])
@@ -147,3 +149,37 @@ async def refine_patient_summary(body: RefineRequest) -> RefineResponse:
         raise HTTPException(status_code=500, detail=f"Refine failed: {exc}")
 
     return RefineResponse(patient_id=pid, summary=refined)
+
+
+# ── export ────────────────────────────────────────────────────────────────────
+
+class ExportDocxRequest(BaseModel):
+    ma_bn_an: str = Field(..., description="Patient ID")
+    summary: str = Field(..., description="Summary text to export")
+
+
+@router.post("/export-docx")
+async def export_docx(body: ExportDocxRequest) -> Response:
+    """
+    Render the summary as a DOCX file and return it as a download.
+    """
+    pid = body.ma_bn_an.strip()
+    summary = body.summary.strip()
+
+    if not pid:
+        raise HTTPException(status_code=422, detail="ma_bn_an must not be empty.")
+    if not summary:
+        raise HTTPException(status_code=422, detail="summary must not be empty.")
+
+    try:
+        docx_bytes = build_docx(pid, summary)
+    except Exception as exc:
+        log.exception("DOCX export failed for patient %s", pid)
+        raise HTTPException(status_code=500, detail=f"Export failed: {exc}")
+
+    filename = f"tom_tat_{pid}.docx"
+    return Response(
+        content=docx_bytes,
+        media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )

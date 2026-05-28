@@ -9,6 +9,7 @@ export default function PatientSummaryPanel({ patientId: initialPatientId }: { p
   const [refineHistory, setRefineHistory] = useState<{ instruction: string; result_summary: string }[]>([])
   const [isGenerating, setIsGenerating] = useState(false)
   const [isRefining, setIsRefining] = useState(false)
+  const [isExporting, setIsExporting] = useState(false)
   const [error, setError] = useState('')
 
   async function handleGenerate() {
@@ -33,6 +34,35 @@ export default function PatientSummaryPanel({ patientId: initialPatientId }: { p
       setError('Lỗi mạng — máy chủ có đang chạy không?')
     } finally {
       setIsGenerating(false)
+    }
+  }
+
+  async function handleExport() {
+    if (!summary || !patientId.trim()) return
+    setIsExporting(true)
+    setError('')
+    try {
+      const res = await fetch('/api/export-docx', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ma_bn_an: patientId.trim(), summary }),
+      })
+      if (!res.ok) {
+        const detail = await res.json().catch(() => ({ detail: res.statusText }))
+        setError(detail.detail ?? `Lỗi ${res.status}`)
+        return
+      }
+      const blob = await res.blob()
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `tom_tat_${patientId.trim()}.docx`
+      a.click()
+      URL.revokeObjectURL(url)
+    } catch {
+      setError('Lỗi mạng — máy chủ có đang chạy không?')
+    } finally {
+      setIsExporting(false)
     }
   }
 
@@ -142,9 +172,15 @@ export default function PatientSummaryPanel({ patientId: initialPatientId }: { p
               <span className="material-symbols-outlined text-sm">visibility</span>
               Xem trước
             </button>
-            <button className="flex-1 py-2 px-3 bg-primary text-white text-[11px] font-bold rounded-lg hover:bg-primary/90 transition-colors uppercase tracking-wider flex items-center justify-center gap-1">
-              <span className="material-symbols-outlined text-sm">download</span>
-              Xuất DOCX
+            <button
+              onClick={handleExport}
+              disabled={isExporting || !summary}
+              className="flex-1 py-2 px-3 bg-primary text-white text-[11px] font-bold rounded-lg hover:bg-primary/90 transition-colors uppercase tracking-wider flex items-center justify-center gap-1 disabled:opacity-60 disabled:cursor-not-allowed"
+            >
+              <span className="material-symbols-outlined text-sm">
+                {isExporting ? 'hourglass_empty' : 'download'}
+              </span>
+              {isExporting ? 'Đang xuất…' : 'Xuất DOCX'}
             </button>
           </div>
         </div>

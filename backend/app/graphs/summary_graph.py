@@ -172,7 +172,7 @@ def draft_summary(state: SummaryState) -> dict:
 
     system = SystemMessage(content=(
         "Bạn là bác sĩ viết tóm tắt bệnh án. "
-        "Hãy viết văn bản bệnh án đầy đủ, rõ ràng, bằng tiếng Việt chuyên ngành y tế, không dùng từ viết tắt. "
+        "Hãy viết văn bản bệnh án đầy đủ, rõ ràng, bằng tiếng Việt chuyên ngành y tế, không dùng từ viết tắt, không dùng mã ICD-10."
         "Văn bản phải bao gồm:\n"
         "1. Thông tin bệnh nhân\n"
         "2. Lý do vào viện\n"
