@@ -147,7 +147,15 @@ async def generate_answer(state: ChatState) -> dict:
     messages.append(HumanMessage(content=state["question"]))
 
     response = await llm.ainvoke(messages)
-    answer = response.content.strip()
+    
+    content = response.content
+    if isinstance(content, list):
+        # Join all text pieces together, ignoring non-text blocks if they exist
+        answer = "".join([block.get("text", "") if isinstance(block, dict) else str(block) for block in content]).strip()
+    else:
+        # If it's already a string, strip it normally
+        answer = content.strip()
+    
     log.info("generate_answer: patient='%s'  %d chars", state["patient_id"], len(answer))
     return {"answer": answer}
 

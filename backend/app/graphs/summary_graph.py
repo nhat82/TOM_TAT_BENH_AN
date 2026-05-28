@@ -140,7 +140,7 @@ def build_timeline(state: SummaryState) -> dict:
     else:
         # If it's already a string, strip it normally
         raw = content.strip()
-    # raw = response.content.strip()
+    
 
     # Strip markdown code fences if present
     if raw.startswith("```"):
