@@ -124,7 +124,7 @@ def build_timeline(state: SummaryState) -> dict:
 
     system = SystemMessage(content=(
         "Bạn là trợ lý y tế. Hãy trích xuất danh sách sự kiện theo thời gian "
-        "từ hồ sơ bệnh nhân. Trả về JSON array, mỗi phần tử có dạng:\n"
+        "từ hồ sơ bệnh nhân, không viết tắt. Trả về JSON array, mỗi phần tử có dạng:\n"
         '{"date": "YYYY-MM-DD hoặc mô tả thời điểm", '
         '"event": "tên sự kiện ngắn gọn", '
         '"detail": "chi tiết ngắn"}\n'
@@ -172,14 +172,15 @@ def draft_summary(state: SummaryState) -> dict:
 
     system = SystemMessage(content=(
         "Bạn là bác sĩ viết tóm tắt bệnh án. "
-        "Hãy viết tóm tắt bệnh án đầy đủ, rõ ràng, bằng tiếng Việt chuyên ngành y tế. "
-        "Tóm tắt phải bao gồm:\n"
-        "1. Lý do vào viện\n"
-        "2. Tiền sử bệnh\n"
-        "3. Chẩn đoán chính và kèm theo\n"
-        "4. Quá trình điều trị và diễn biến lâm sàng\n"
-        "5. Kết quả cận lâm sàng nổi bật\n"
-        "6. Tình trạng ra viện và hướng điều trị tiếp theo\n\n"
+        "Hãy viết văn bản bệnh án đầy đủ, rõ ràng, bằng tiếng Việt chuyên ngành y tế, không dùng từ viết tắt. "
+        "Văn bản phải bao gồm:\n"
+        "1. Thông tin bệnh nhân\n"
+        "2. Lý do vào viện\n"
+        "3. Tiền sử bệnh\n"
+        "4. Chẩn đoán chính và kèm theo\n"
+        "5. Quá trình điều trị và diễn biến lâm sàng\n"
+        "6. Kết quả cận lâm sàng nổi bật\n"
+        "7. Tình trạng ra viện và hướng điều trị tiếp theo\n\n"
         "Viết súc tích, tránh lặp lại. Không bịa đặt thông tin ngoài hồ sơ."
     ))
     human = HumanMessage(content=(
