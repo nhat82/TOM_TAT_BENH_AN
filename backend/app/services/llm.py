@@ -15,13 +15,13 @@ CHAT_MODEL_2                       — default: gemini-2.5-flash-lite
 from __future__ import annotations
 
 import os
-from typing import Any, Optional
+from typing import Any, AsyncIterator, Optional
 
 from dotenv import load_dotenv
 from litellm import Router
 from langchain_core.language_models.chat_models import BaseChatModel
-from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, SystemMessage
-from langchain_core.outputs import ChatGeneration, ChatResult
+from langchain_core.messages import AIMessage, AIMessageChunk, BaseMessage, HumanMessage, SystemMessage
+from langchain_core.outputs import ChatGeneration, ChatGenerationChunk, ChatResult
 
 load_dotenv()
 
@@ -104,6 +104,21 @@ class _RouterChatModel(BaseChatModel):
         )
         content = resp.choices[0].message.content or ""
         return ChatResult(generations=[ChatGeneration(message=AIMessage(content=content))])
+
+    async def _astream(
+        self,
+        messages: list[BaseMessage],
+        stop: Optional[list[str]] = None,
+        run_manager: Any = None,
+        **kwargs: Any,
+    ) -> AsyncIterator[ChatGenerationChunk]:
+        resp = await _get_router().acompletion(
+            model=self.model_group, messages=_to_litellm(messages), stream=True
+        )
+        async for chunk in resp:
+            delta = chunk.choices[0].delta.content or ""
+            if delta:
+                yield ChatGenerationChunk(message=AIMessageChunk(content=delta))
 
 
 _summary_llm: _RouterChatModel | None = None

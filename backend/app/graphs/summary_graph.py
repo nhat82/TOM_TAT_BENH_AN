@@ -25,11 +25,23 @@ import requests
 import base64
 from typing import TypedDict
 
-from langchain_core.messages import HumanMessage, SystemMessage
 from langgraph.graph import END, START, StateGraph
 
+from app.graphs.prompts import (
+    DEFAULT_VERSION,
+    PromptVersion,
+    build_context_section,
+    build_history_section,
+    get_draft_messages,
+    get_refine_messages,
+    get_timeline_messages,
+)
 from app.services.chroma import get_collection
 from app.services.llm import get_summary_llm
+
+# Change to PromptVersion.EN to use the English-instruction prompts.
+# Override at runtime with env var SUMMARY_PROMPT_VERSION=en|vi.
+PROMPT_VERSION: PromptVersion = DEFAULT_VERSION.EN
 
 log = logging.getLogger(__name__)
 
@@ -122,15 +134,7 @@ def build_timeline(state: SummaryState) -> dict:
     context = "\n\n".join(state["chunks"])
     llm = get_summary_llm()
 
-    system = SystemMessage(content=(
-        "Bạn là trợ lý y tế. Hãy trích xuất danh sách sự kiện theo thời gian "
-        "từ hồ sơ bệnh nhân, không viết tắt. Trả về JSON array, mỗi phần tử có dạng:\n"
-        '{"date": "YYYY-MM-DD hoặc mô tả thời điểm", '
-        '"event": "tên sự kiện ngắn gọn", '
-        '"detail": "chi tiết ngắn"}\n'
-        "Chỉ trả về JSON array thuần túy, không giải thích thêm."
-    ))
-    human = HumanMessage(content=f"Hồ sơ bệnh nhân:\n{context}")
+    system, human = get_timeline_messages(PROMPT_VERSION, context)
 
     response = llm.invoke([system, human])
     content = response.content
@@ -170,23 +174,7 @@ def draft_summary(state: SummaryState) -> dict:
     timeline_text = json.dumps(state["timeline"], ensure_ascii=False, indent=2)
     llm = get_summary_llm()
 
-    system = SystemMessage(content=(
-        "Bạn là bác sĩ viết tóm tắt bệnh án. "
-        "Hãy viết văn bản bệnh án đầy đủ, rõ ràng, bằng tiếng Việt chuyên ngành y tế, không dùng từ viết tắt, không dùng mã ICD-10."
-        "Văn bản phải bao gồm:\n"
-        "1. Thông tin bệnh nhân\n"
-        "2. Lý do vào viện\n"
-        "3. Tiền sử bệnh\n"
-        "4. Chẩn đoán chính và kèm theo\n"
-        "5. Quá trình điều trị và diễn biến lâm sàng\n"
-        "6. Kết quả cận lâm sàng nổi bật\n"
-        "7. Tình trạng ra viện và hướng điều trị tiếp theo\n\n"
-        "Viết súc tích, tránh lặp lại. Không bịa đặt thông tin ngoài hồ sơ."
-    ))
-    human = HumanMessage(content=(
-        f"Timeline sự kiện:\n{timeline_text}\n\n"
-        f"Hồ sơ chi tiết:\n{context}"
-    ))
+    system, human = get_draft_messages(PROMPT_VERSION, context, timeline_text)
 
     response = llm.invoke([system, human])
     
@@ -219,32 +207,11 @@ async def refine_summary(
     """
     llm = get_summary_llm()
 
-    history_section = ""
-    if history:
-        lines = ["Lịch sử chỉnh sửa trước đó (từ cũ đến mới):"]
-        for i, entry in enumerate(history, 1):
-            lines.append(f"  [{i}] Yêu cầu: {entry.get('instruction', '')}")
-        history_section = "\n" + "\n".join(lines)
-
-    context_section = ""
-    if chunks:
-        context_section = (
-            "\n\nHồ sơ gốc (để tham chiếu nếu cần):\n"
-            + "\n\n".join(chunks[:6])
-        )
-
-    system = SystemMessage(content=(
-        "Bạn là bác sĩ chỉnh sửa tóm tắt bệnh án. "
-        "Hãy chỉnh sửa tóm tắt bệnh án hiện tại theo đúng yêu cầu của người dùng. "
-        "Giữ nguyên các phần không cần thay đổi. "
-        "Chỉ trả về bản tóm tắt đã chỉnh sửa, không giải thích thêm."
-    ))
-    human = HumanMessage(content=(
-        f"Tóm tắt hiện tại:\n{current_summary}"
-        f"{history_section}\n\n"
-        f"Yêu cầu chỉnh sửa mới: {instruction}"
-        f"{context_section}"
-    ))
+    history_section = build_history_section(history or [], PROMPT_VERSION)
+    context_section = build_context_section(chunks or [], PROMPT_VERSION)
+    system, human = get_refine_messages(
+        PROMPT_VERSION, current_summary, instruction, history_section, context_section
+    )
 
     response = await llm.ainvoke([system, human])
     content = response.content

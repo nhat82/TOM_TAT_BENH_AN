@@ -25,6 +25,7 @@ for auditing even though the client sends chat_history on every request.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from typing import AsyncGenerator, TypedDict
 
@@ -99,8 +100,10 @@ def _rank_chunks(q_emb: list[float], chunks: list[str], top_n: int = 6) -> list[
 
 # ── nodes ─────────────────────────────────────────────────────────────────────
 
-def embed_question(state: ChatState) -> dict:
-    return {"embedding": _embed([state["question"]])[0]}
+async def embed_question(state: ChatState) -> dict:
+    loop = asyncio.get_event_loop()
+    embedding = await loop.run_in_executor(None, lambda: _embed([state["question"]])[0])
+    return {"embedding": embedding}
 
 
 def retrieve_chunks(state: ChatState) -> dict:
