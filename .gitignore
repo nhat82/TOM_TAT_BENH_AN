@@ -9,3 +9,4 @@ dist/
 .claude/
 backend/data/Sample_20BN.csv
 backend/data/Sample_BN_2026.csv
+PERSONAL_NOTE.md

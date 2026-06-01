@@ -65,13 +65,13 @@ fi
 
 info "Installing Python dependencies (this may take a few minutes)..."
 "$VENV_DIR/bin/pip" install --upgrade pip -q
-"$VENV_DIR/bin/pip" install -r "$SCRIPT_DIR/backend/requirements.txt" -q
+"$VENV_DIR/bin/pip" install --no-cache-dir -r "$SCRIPT_DIR/backend/requirements.txt" -q
 info "Python dependencies installed."
 
 # ── 4. Node.js dependencies ───────────────────────────────────────────────────
 info "Installing frontend npm dependencies..."
 cd "$SCRIPT_DIR/frontend"
-npm install --silent
+npm install --prefer-online --silent
 info "npm dependencies installed."
 
 # ── 5. Start services ─────────────────────────────────────────────────────────
