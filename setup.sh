@@ -9,27 +9,14 @@ error() { echo -e "${RED}[ERROR]${NC} $*"; exit 1; }
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-# ── 1. System packages ────────────────────────────────────────────────────────
-info "Updating package lists..."
-sudo apt-get update -qq
+# ── 1. Preflight checks ───────────────────────────────────────────────────────
+command -v python3 &>/dev/null || error "python3 not found — install Python 3.11+ before running this script."
+python3 -c "import sys; assert sys.version_info >= (3,11)" 2>/dev/null \
+  || error "Python 3.11+ required (found $(python3 --version))."
+info "Python: $(python3 --version)"
 
-# Python 3.11+ and venv
-if ! command -v python3 &>/dev/null || ! python3 -c "import sys; assert sys.version_info >= (3,11)" 2>/dev/null; then
-  info "Installing Python 3.11..."
-  sudo apt-get install -y -qq python3.11 python3.11-venv python3.11-dev python3-pip
-  sudo update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.11 1
-else
-  info "Python already installed: $(python3 --version)"
-fi
-
-# Node.js 20 LTS
-if ! command -v node &>/dev/null; then
-  info "Installing Node.js 20 LTS..."
-  curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
-  sudo apt-get install -y -qq nodejs
-else
-  info "Node.js already installed: $(node --version)"
-fi
+command -v node &>/dev/null || error "node not found — install Node.js 20+ before running this script."
+info "Node.js: $(node --version)"
 
 # ── 2. .env file ──────────────────────────────────────────────────────────────
 ENV_FILE="$SCRIPT_DIR/backend/.env"
