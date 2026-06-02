@@ -16,51 +16,78 @@ apt-get update
 apt-get install -yq python3.11 python3.11-venv python3.11-dev
 
 # Install Node.js 20
+echo "Installing Node.js..."
 mkdir -p /opt/nodejs
 curl https://nodejs.org/dist/v20.19.0/node-v20.19.0-linux-x64.tar.gz \
-  | tar xvzf - -C /opt/nodejs --strip-components=1
+  | tar xzf - -C /opt/nodejs --strip-components=1
 ln -sf /opt/nodejs/bin/node /usr/bin/node
 ln -sf /opt/nodejs/bin/npm /usr/bin/npm
 
 # Get the application source code from the Google Cloud Storage bucket.
-mkdir /tom-tat-benh-an
-gsutil -m cp -r gs://[YOUR_BUCKET]/tom-tat-benh-an/* /tom-tat-benh-an/
+echo "Downloading source code from GCS..."
+mkdir -p /tom-tat-benh-an/backend /tom-tat-benh-an/frontend
+
+# Copy contents recursively. 
+gsutil -m cp -r "gs://ai-tom-tat-badt/TOM_TAT_BENH_AN/*" /tom-tat-benh-an/
+
+# Handle double-nesting (common if the folder was uploaded as a subfolder)
+if [ -d "/tom-tat-benh-an/TOM_TAT_BENH_AN" ]; then
+    echo "Detected nested directory structure, flattening..."
+    mv /tom-tat-benh-an/TOM_TAT_BENH_AN/* /tom-tat-benh-an/ 2>/dev/null
+    mv /tom-tat-benh-an/TOM_TAT_BENH_AN/.* /tom-tat-benh-an/ 2>/dev/null
+fi
+
+# Verification debug: List what we have now
+echo "Deployment directory structure:"
+ls -F /tom-tat-benh-an/
+ls -F /tom-tat-benh-an/backend/ || echo "Backend dir is missing!"
 
 # Write the .env file from GCE instance metadata (set these at VM creation time
 # under --metadata GOOGLE_API_KEY=...).
 METADATA_URL="http://metadata.google.internal/computeMetadata/v1/instance/attributes"
 GOOGLE_API_KEY=$(curl -sf "${METADATA_URL}/GOOGLE_API_KEY" -H "Metadata-Flavor: Google")
+EXTERNAL_IP=$(curl -sf "http://metadata.google.internal/computeMetadata/v1/instance/network-interfaces/0/access-configs/0/external-ip" -H "Metadata-Flavor: Google")
+
 
 cat > /tom-tat-benh-an/backend/.env << EOF
+VM_EXTERNAL_IP=${EXTERNAL_IP}
 GOOGLE_API_KEY=${GOOGLE_API_KEY}
 CHROMA_PATH=./chroma_data
 CSV_PATH=./data/sample.csv
 
-# LiteLLM Router — summary group (both models are load-balanced)
+# LiteLLM Router â€” summary group (both models are load-balanced)
 SUMMARY_MODEL_1=gemini-2.5-flash-lite
 SUMMARY_MODEL_2=gemini-2.5-flash
 
-# LiteLLM Router — chat group (both models are load-balanced)
+# LiteLLM Router â€” chat group (both models are load-balanced)
 CHAT_MODEL_1=gemini-2.5-flash-lite
 CHAT_MODEL_2=gemini-2.5-flash
 
-# Evaluation judge (unchanged — direct Gemini API)
+# Evaluation judge (unchanged â€” direct Gemini API)
 GEMINI_JUDGE_MODEL=gemini-2.5-flash
 JUDGE_MAX_WAIT=900
 EOF
 
+# Provide the External IP to the frontend so it knows where the API is
+echo "Configuring frontend with External IP: ${EXTERNAL_IP}"
+cat > /tom-tat-benh-an/frontend/.env << EOF
+VITE_API_BASE_URL=http://${EXTERNAL_IP}:8000
+EOF
+
 # Set up Python virtual environment and install backend dependencies.
-python3.11 -m venv /tom-tat-benh-an/backend/.venv
+echo "Setting up Python environment..."
+python3.11 -m venv /tom-tat-benh-an/backend/.venv || exit 1
 /tom-tat-benh-an/backend/.venv/bin/pip install --upgrade pip -q
 /tom-tat-benh-an/backend/.venv/bin/pip install --no-cache-dir \
   -r /tom-tat-benh-an/backend/requirements.txt
 
 # Install frontend npm dependencies.
 cd /tom-tat-benh-an/frontend
-npm install
+echo "Installing NPM dependencies..."
+npm install --no-audit --no-fund
 
 # Create an appuser. The application will run as this user.
-useradd -m -d /home/appuser appuser
+id -u appuser &>/dev/null || useradd -m -d /home/appuser appuser
 chown -R appuser:appuser /tom-tat-benh-an
 
 # Configure supervisor to run the FastAPI backend.

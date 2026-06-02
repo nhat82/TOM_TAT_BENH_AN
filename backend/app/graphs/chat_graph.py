@@ -4,7 +4,7 @@ RAG chat graph for patient Q&A
 
 Nodes
 -----
-embed_question  – encode the user's question with gemini-embedding-001
+embed_question  – encode the user's question with gemini-embedding-gemini-embedding-2
 retrieve_chunks – fetch the patient's document, split into sections,
                   rank sections by cosine similarity to the question
 generate_answer – call the LLM with context + chat history (streamed via
@@ -61,26 +61,28 @@ class ChatState(TypedDict):
 
 _GEMINI_EMBED_URL = (
     "https://generativelanguage.googleapis.com/v1beta"
-    "/models/gemini-embedding-001:batchEmbedContents"
+    "/models/gemini-embedding-2:embedContent"
 )
 
 
-def _embed(texts: list[str], task_type: str = "RETRIEVAL_DOCUMENT") -> list[list[float]]:
+def _embed(texts: list[str], task_type: str = "RETRIEVAL_QUERY") -> list[list[float]]:
     api_key = os.environ["GOOGLE_API_KEY"]
-    payload = {
-        "requests": [
-            {
-                "model": "models/gemini-embedding-001",
-                "content": {"parts": [{"text": t}]},
-                "taskType": task_type,
-                "outputDimensionality": 768,
-            }
-            for t in texts
-        ]
-    }
-    resp = _req.post(f"{_GEMINI_EMBED_URL}?key={api_key}", json=payload, timeout=60)
-    resp.raise_for_status()
-    return [e["values"] for e in resp.json()["embeddings"]]
+    log.info("_embed: %d text(s), task_type=%s", len(texts), task_type)
+    result: list[list[float]] = []
+    for i, t in enumerate(texts):
+        payload = {
+            "model": "models/gemini-embedding-2",
+            "content": {"parts": [{"text": t}]},
+            "taskType": task_type,
+            "outputDimensionality": 768,
+        }
+        resp = _req.post(f"{_GEMINI_EMBED_URL}?key={api_key}", json=payload, timeout=60)
+        log.info("_embed call %d/%d → HTTP %d", i + 1, len(texts), resp.status_code)
+        if resp.status_code == 429:
+            log.error("429 body: %s", resp.text)
+        resp.raise_for_status()
+        result.append(resp.json()["embedding"]["values"])
+    return result
 
 
 # ── chunk helpers ─────────────────────────────────────────────────────────────
