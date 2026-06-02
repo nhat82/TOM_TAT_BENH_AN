@@ -4,7 +4,7 @@ RAG chat graph for patient Q&A
 
 Nodes
 -----
-embed_question  – encode the user's question with the Vietnamese bi-encoder
+embed_question  – encode the user's question with gemini-embedding-001
 retrieve_chunks – fetch the patient's document, split into sections,
                   rank sections by cosine similarity to the question
 generate_answer – call the LLM with context + chat history (streamed via
@@ -34,6 +34,10 @@ from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from langgraph.checkpoint.memory import MemorySaver
 from langgraph.graph import END, START, StateGraph
 
+import os
+
+import requests as _req
+
 from app.services.chroma import get_collection
 from app.services.llm import get_chat_llm
 
@@ -55,20 +59,28 @@ class ChatState(TypedDict):
 
 # ── embedder ──────────────────────────────────────────────────────────────────
 
-_embedder = None
+_GEMINI_EMBED_URL = (
+    "https://generativelanguage.googleapis.com/v1beta"
+    "/models/gemini-embedding-001:batchEmbedContents"
+)
 
 
-def _get_embedder():
-    global _embedder
-    if _embedder is None:
-        from sentence_transformers import SentenceTransformer
-        log.info("Loading vietnamese-bi-encoder…")
-        _embedder = SentenceTransformer("bkai-foundation-models/vietnamese-bi-encoder")
-    return _embedder
-
-
-def _embed(texts: list[str]) -> list[list[float]]:
-    return _get_embedder().encode(texts, normalize_embeddings=True, batch_size=32).tolist()
+def _embed(texts: list[str], task_type: str = "RETRIEVAL_DOCUMENT") -> list[list[float]]:
+    api_key = os.environ["GOOGLE_API_KEY"]
+    payload = {
+        "requests": [
+            {
+                "model": "models/gemini-embedding-001",
+                "content": {"parts": [{"text": t}]},
+                "taskType": task_type,
+                "outputDimensionality": 768,
+            }
+            for t in texts
+        ]
+    }
+    resp = _req.post(f"{_GEMINI_EMBED_URL}?key={api_key}", json=payload, timeout=60)
+    resp.raise_for_status()
+    return [e["values"] for e in resp.json()["embeddings"]]
 
 
 # ── chunk helpers ─────────────────────────────────────────────────────────────
@@ -102,7 +114,9 @@ def _rank_chunks(q_emb: list[float], chunks: list[str], top_n: int = 6) -> list[
 
 async def embed_question(state: ChatState) -> dict:
     loop = asyncio.get_event_loop()
-    embedding = await loop.run_in_executor(None, lambda: _embed([state["question"]])[0])
+    embedding = await loop.run_in_executor(
+        None, lambda: _embed([state["question"]], task_type="RETRIEVAL_QUERY")[0]
+    )
     return {"embedding": embedding}
 
 

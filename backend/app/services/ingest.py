@@ -1,6 +1,6 @@
 """
 Medical-record ingestion pipeline
-• Embeds documents with bkai-foundation-models/vietnamese-bi-encoder
+• Embeds documents with gemini-embedding-001 via Google REST API
 • Upserts into ChromaDB (incremental, hash-gated)
 
 CLI:
@@ -124,15 +124,35 @@ def build_metadata(row: dict) -> dict[str, str]:
     return meta
 
 
-_embedder = None
+_GEMINI_EMBED_URL = (
+    "https://generativelanguage.googleapis.com/v1beta"
+    "/models/gemini-embedding-001:batchEmbedContents"
+)
+_BATCH_SIZE = 100  # Gemini batchEmbedContents hard limit
 
-def _embed(texts: list[str]) -> list[list[float]]:
-    global _embedder
-    if _embedder is None:
-        from sentence_transformers import SentenceTransformer
-        log.info("Loading vietnamese-bi-encoder…")
-        _embedder = SentenceTransformer("bkai-foundation-models/vietnamese-bi-encoder")
-    return _embedder.encode(texts, normalize_embeddings=True, batch_size=32).tolist()
+
+def _embed(texts: list[str], task_type: str = "RETRIEVAL_DOCUMENT") -> list[list[float]]:
+    import os
+    import requests as _req
+    api_key = os.environ["GOOGLE_API_KEY"]
+    result: list[list[float]] = []
+    for i in range(0, len(texts), _BATCH_SIZE):
+        batch = texts[i : i + _BATCH_SIZE]
+        payload = {
+            "requests": [
+                {
+                    "model": "models/gemini-embedding-001",
+                    "content": {"parts": [{"text": t}]},
+                    "taskType": task_type,
+                    "outputDimensionality": 768,
+                }
+                for t in batch
+            ]
+        }
+        resp = _req.post(f"{_GEMINI_EMBED_URL}?key={api_key}", json=payload, timeout=120)
+        resp.raise_for_status()
+        result.extend(e["values"] for e in resp.json()["embeddings"])
+    return result
 
 
 def ingest_csv(csv_path: Path = DEFAULT_CSV, force: bool = False) -> dict:
