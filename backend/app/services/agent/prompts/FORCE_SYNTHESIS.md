@@ -1,1 +1,0 @@
-SYSTEM NOTICE: You have reached your structural tool limits or a loop was detected. Do NOT attempt to call any more tools or SQL queries. Review your previous observations above and synthesize the best possible final answer for the user with the available data. If you do not have the answer, explain honestly what you discovered before being cut off.
