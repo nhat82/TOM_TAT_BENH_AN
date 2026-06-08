@@ -37,7 +37,7 @@ export default function ClinicalInsightsPanel({ patientId }: { patientId?: strin
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          id_benh_nhan: patientId ?? '',
+          patient_id: patientId ?? '',
           query: text,
           chat_history: history,
         }),

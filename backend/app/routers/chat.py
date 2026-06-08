@@ -62,7 +62,14 @@ async def chat(body: ChatRequest) -> StreamingResponse:
         try:
             async for event in graph.astream_events(input_state, config=config, version="v2"):
                 if event["event"] == "on_chat_model_stream":
-                    token: str = event["data"]["chunk"].content
+                    raw = event["data"]["chunk"].content
+                    if isinstance(raw, list):
+                        token = "".join(
+                            p.get("text", "") if isinstance(p, dict) else str(p)
+                            for p in raw
+                        )
+                    else:
+                        token = raw
                     if token:
                         yield _sse({"type": "token", "content": token})
 

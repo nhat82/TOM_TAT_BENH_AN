@@ -54,3 +54,9 @@ sample_medical_records=# \d medical_records
 ✅ Create query tools (get tables, view table schema, call generated query)
 ✅ Prompt: Get full query returns. Only get the records from the given patient
 ✅ Langsmith monitoring
+
+## Jun 6, 2026
+Replaced native rag to ReAct Agent for /chat, /patient pulls directly from db. set string output for langchain sql tool to a large number. Removed ingestion step
+
+## Jun 8, 2026 
+fixed routing for backend, frontend. added streaming chunks from gemini. 
