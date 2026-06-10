@@ -20,7 +20,10 @@ class AgentState(BaseModel):
 llm = ChatGoogleGenerativeAI(
     model="gemini-3.1-flash-lite",
     api_key=os.environ["GEMINI_API_KEY"],
+    temperature=0,
 )
+
+
 llm_with_tools = llm.bind_tools(tools)
 
 

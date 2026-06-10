@@ -10,6 +10,8 @@ export default function PatientSummaryPanel({ patientId: initialPatientId }: { p
   const [isGenerating, setIsGenerating] = useState(false)
   const [isRefining, setIsRefining] = useState(false)
   const [isExporting, setIsExporting] = useState(false)
+  const [isPreviewing, setIsPreviewing] = useState(false)
+  const [previewHtml, setPreviewHtml] = useState<string | null>(null)
   const [error, setError] = useState('')
 
   async function handleGenerate() {
@@ -34,6 +36,30 @@ export default function PatientSummaryPanel({ patientId: initialPatientId }: { p
       setError('Lỗi mạng — máy chủ có đang chạy không?')
     } finally {
       setIsGenerating(false)
+    }
+  }
+
+  async function handlePreview() {
+    if (!summary || !patientId.trim()) return
+    setIsPreviewing(true)
+    setError('')
+    try {
+      const res = await fetch('/api/preview-html', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ma_bn_an: patientId.trim(), summary }),
+      })
+      if (!res.ok) {
+        const detail = await res.json().catch(() => ({ detail: res.statusText }))
+        setError(detail.detail ?? `Lỗi ${res.status}`)
+        return
+      }
+      const html = await res.text()
+      setPreviewHtml(html)
+    } catch {
+      setError('Lỗi mạng — máy chủ có đang chạy không?')
+    } finally {
+      setIsPreviewing(false)
     }
   }
 
@@ -95,6 +121,7 @@ export default function PatientSummaryPanel({ patientId: initialPatientId }: { p
   }
 
   return (
+    <>
     <div className="bg-surface-container border border-outline rounded-xl flex flex-col mb-lg shadow-sm overflow-hidden">
       <div className="px-lg py-md border-b border-outline flex items-center gap-md bg-white">
         <span className="material-symbols-outlined text-primary">description</span>
@@ -168,9 +195,15 @@ export default function PatientSummaryPanel({ patientId: initialPatientId }: { p
           </div>
 
           <div className="flex gap-sm pt-2">
-            <button className="flex-1 py-2 px-3 border border-primary text-primary text-[11px] font-bold rounded-lg hover:bg-primary/5 transition-colors uppercase tracking-wider flex items-center justify-center gap-1">
-              <span className="material-symbols-outlined text-sm">visibility</span>
-              Xem trước
+            <button
+              onClick={handlePreview}
+              disabled={isPreviewing || !summary}
+              className="flex-1 py-2 px-3 border border-primary text-primary text-[11px] font-bold rounded-lg hover:bg-primary/5 transition-colors uppercase tracking-wider flex items-center justify-center gap-1 disabled:opacity-60 disabled:cursor-not-allowed"
+            >
+              <span className="material-symbols-outlined text-sm">
+                {isPreviewing ? 'hourglass_empty' : 'visibility'}
+              </span>
+              {isPreviewing ? 'Đang tải…' : 'Xem trước'}
             </button>
             <button
               onClick={handleExport}
@@ -186,5 +219,43 @@ export default function PatientSummaryPanel({ patientId: initialPatientId }: { p
         </div>
       </div>
     </div>
+
+    {previewHtml && (
+      <div
+        className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+        onClick={() => setPreviewHtml(null)}
+      >
+        <div
+          className="bg-white rounded-xl shadow-2xl w-full max-w-4xl h-[96vh] flex flex-col"
+          onClick={e => e.stopPropagation()}
+        >
+          <div className="flex items-center justify-between px-6 py-3 border-b border-outline shrink-0">
+            <span className="text-sm font-semibold text-on-surface">Xem trước tóm tắt</span>
+            <button
+              onClick={() => setPreviewHtml(null)}
+              className="text-on-surface-variant hover:text-on-surface transition-colors"
+            >
+              <span className="material-symbols-outlined">close</span>
+            </button>
+          </div>
+
+          <iframe
+            srcDoc={previewHtml ?? undefined}
+            className="flex-1 w-full border-none min-h-[200px]"
+            title="Xem trước tóm tắt bệnh án"
+          />
+
+          <div className="flex items-center gap-sm px-6 py-3 border-t border-outline shrink-0">
+            <button
+              onClick={() => setPreviewHtml(null)}
+              className="ml-auto px-4 py-2 bg-primary text-white rounded-lg text-xs font-bold hover:bg-primary/90 transition-colors uppercase tracking-wider"
+            >
+              Đóng
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
+    </>
   )
 }

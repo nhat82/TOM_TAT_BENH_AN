@@ -60,3 +60,6 @@ Replaced native rag to ReAct Agent for /chat, /patient pulls directly from db. s
 
 ## Jun 8, 2026 
 fixed routing for backend, frontend. added streaming chunks from gemini. 
+
+## Jun 10, 2026
+added summary agent: calls database to get information once, create summary based on template (template doesn't call for personal information to prevent PII leak). can refine but cannot call database anymore. 
