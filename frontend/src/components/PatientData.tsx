@@ -208,6 +208,8 @@ function parsePyDictList(raw: string): Record<string, string>[] | null {
 
 function parseXetNghiemTable(raw: string): { headers: string[]; rows: string[][] } | null {
   if (!raw?.trim()) return null
+  const lower = raw.trim().toLowerCase()
+  if (lower === 'null' || lower === 'none' || lower === 'nan') return null
 
   // Try Python-style dict/list (most common format from DB)
   const pyObjs = parsePyDictList(raw)
@@ -264,11 +266,7 @@ function XetNghiemTable({ value }: { value: string }) {
   const parsed = parseXetNghiemTable(value)
 
   if (!parsed) {
-    return (
-      <pre className="text-xs text-on-surface font-mono bg-surface-container-low rounded-lg p-md leading-relaxed whitespace-pre-wrap break-all col-span-2">
-        {value}
-      </pre>
-    )
+    return <Empty />
   }
 
   return (
@@ -302,6 +300,15 @@ function XetNghiemTable({ value }: { value: string }) {
   )
 }
 
+function formatDMY(raw: string): string {
+  const d = new Date(raw)
+  if (isNaN(d.getTime())) return raw
+  const day = String(d.getDate()).padStart(2, '0')
+  const month = String(d.getMonth() + 1).padStart(2, '0')
+  const year = d.getFullYear()
+  return `${day}/${month}/${year}`
+}
+
 function CdhaAccordion({ value }: { value: string }) {
   const items = parsePyDictList(value)
 
@@ -316,7 +323,8 @@ function CdhaAccordion({ value }: { value: string }) {
   return (
     <div className="col-span-2 flex flex-col gap-xs">
       {items.map((item, i) => {
-        const date = item['ngay'] || item['Ngày'] || `#${i + 1}`
+        const rawDate = item['ngay'] || item['Ngày'] || ''
+        const date = rawDate ? formatDMY(rawDate) : `#${i + 1}`
         const description = item['mo_ta'] || item['Mô tả'] || ''
         return (
           <details key={i} className="group rounded-lg border border-outline-variant overflow-hidden">
