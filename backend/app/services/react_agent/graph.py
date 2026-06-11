@@ -1,6 +1,7 @@
 import os
 from typing import Annotated, Literal
 
+from datetime import datetime
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langgraph.checkpoint.memory import MemorySaver
 from langgraph.graph import START, StateGraph
@@ -31,6 +32,7 @@ def call_llm(state: AgentState):
     system_content = SYSTEM_PROMPT
     if state.patient_id:
         system_content += f"\n\nThe current patient ID is: {state.patient_id}. Only query records for this patient."
+        system_content += f"The current date is {datetime.today().strftime("%Y-%m-%d")}"
 
     messages = state.messages
     if not any(isinstance(m, dict) and m.get("role") == "system" for m in messages):
