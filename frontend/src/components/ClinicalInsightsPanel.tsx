@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { ChatMessage } from '../types'
 
 export default function ClinicalInsightsPanel({ patientId }: { patientId?: string }) {
@@ -7,6 +7,15 @@ export default function ClinicalInsightsPanel({ patientId }: { patientId?: strin
   const [input, setInput] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
+  const scrollContainerRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const last = messages[messages.length - 1]
+    if (last?.sender === 'assistant' && last.content) {
+      const el = scrollContainerRef.current
+      if (el) el.scrollTop = el.scrollHeight
+    }
+  }, [messages])
 
   async function handleSend() {
     const text = input.trim()
@@ -94,12 +103,11 @@ export default function ClinicalInsightsPanel({ patientId }: { patientId?: strin
       )
     } finally {
       setIsLoading(false)
-      setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 50)
     }
   }
 
   return (
-    <div className="bg-surface-container border border-outline rounded-xl flex flex-col shadow-sm overflow-hidden mb-xl" style={{ minHeight: '500px' }}>
+    <div className="bg-surface-container border border-outline rounded-xl flex flex-col shadow-sm overflow-hidden mb-xl" style={{ minHeight: '500px', maxHeight: '600px' }}>
       <div className="px-lg py-md border-b border-outline flex items-center justify-between bg-white">
         <div className="flex items-center gap-md">
           <span className="material-symbols-outlined text-primary">auto_awesome</span>
@@ -115,7 +123,7 @@ export default function ClinicalInsightsPanel({ patientId }: { patientId?: strin
         )}
       </div>
 
-      <div className="flex-1 overflow-y-auto p-lg">
+      <div ref={scrollContainerRef} className="flex-1 overflow-y-auto p-lg">
         {messages.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full text-center py-xl space-y-md opacity-50">
             <span className="material-symbols-outlined text-[40px] text-on-surface-variant">forum</span>
@@ -151,7 +159,7 @@ export default function ClinicalInsightsPanel({ patientId }: { patientId?: strin
             type="text"
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && handleSend()}
+            onKeyDown={(e) => e.key === 'Enter' && !e.nativeEvent.isComposing && handleSend()}
             placeholder="Hỏi về bệnh nhân..."
             className="flex-1 bg-transparent border-none focus:ring-0 text-body-sm py-1 placeholder:text-on-surface-variant/50 outline-none"
           />

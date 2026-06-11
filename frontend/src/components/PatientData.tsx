@@ -1,4 +1,4 @@
-type FieldType = 'text' | 'long' | 'list' | 'gender' | 'bool'
+type FieldType = 'text' | 'long' | 'list' | 'gender' | 'bool' | 'xetnghiem_table' | 'cdha_accordion'
 
 interface FieldDef {
   key: string
@@ -124,14 +124,14 @@ const SECTIONS: SectionDef[] = [
     title: 'Xét nghiệm',
     icon: 'biotech',
     fields: [
-      { key: 'ds_xet_nghiem', label: 'Danh sách xét nghiệm', type: 'list' },
+      { key: 'ds_xet_nghiem', label: 'Danh sách xét nghiệm', type: 'xetnghiem_table' },
     ],
   },
   {
     title: 'Chẩn đoán hình ảnh',
     icon: 'radiology',
     fields: [
-      { key: 'ds_cdha', label: 'Danh sách CĐHA', type: 'list' },
+      { key: 'ds_cdha', label: 'Danh sách CĐHA', type: 'cdha_accordion' },
     ],
   },
   {
@@ -151,6 +151,190 @@ const SECTIONS: SectionDef[] = [
     ],
   },
 ]
+
+const XN_HEADER_MAP: Record<string, string> = {
+  ten_xn: 'Tên xét nghiệm',
+  ket_qua: 'Kết quả',
+  don_vi: 'Đơn vị',
+  khoang_bt: 'Khoảng bình thường',
+  ngay: 'Ngày',
+}
+
+function pyDictToObj(s: string): Record<string, string> | null {
+  // Convert Python-style single-quoted dict to JSON and parse
+  try {
+    const json = s
+      .replace(/'/g, '"')
+      .replace(/\bNone\b/g, 'null')
+      .replace(/\bTrue\b/g, 'true')
+      .replace(/\bFalse\b/g, 'false')
+    return JSON.parse(json)
+  } catch {
+    return null
+  }
+}
+
+function parsePyDictList(raw: string): Record<string, string>[] | null {
+  const trimmed = raw.trim()
+
+  // Single dict: {'key': 'val', ...}
+  if (trimmed.startsWith('{')) {
+    const obj = pyDictToObj(trimmed)
+    return obj ? [obj] : null
+  }
+
+  // List of dicts: [{'key': 'val'}, ...]
+  if (trimmed.startsWith('[')) {
+    try {
+      const json = trimmed
+        .replace(/'/g, '"')
+        .replace(/\bNone\b/g, 'null')
+        .replace(/\bTrue\b/g, 'true')
+        .replace(/\bFalse\b/g, 'false')
+      const arr = JSON.parse(json)
+      if (Array.isArray(arr)) return arr
+    } catch { /* fall through */ }
+  }
+
+  // Newline-separated dicts
+  const lines = trimmed.split('\n').map((l) => l.trim()).filter((l) => l.startsWith('{'))
+  if (lines.length > 0) {
+    const objs = lines.map(pyDictToObj).filter(Boolean) as Record<string, string>[]
+    if (objs.length > 0) return objs
+  }
+
+  return null
+}
+
+function parseXetNghiemTable(raw: string): { headers: string[]; rows: string[][] } | null {
+  if (!raw?.trim()) return null
+
+  // Try Python-style dict/list (most common format from DB)
+  const pyObjs = parsePyDictList(raw)
+  if (pyObjs && pyObjs.length > 0) {
+    const keys = Object.keys(pyObjs[0])
+    const headers = keys.map((k) => XN_HEADER_MAP[k] ?? k)
+    const NULL_VALS = new Set(['', '0001-01-01t00:00:00', '0001-01-01 00:00:00'])
+    const rows = pyObjs.map((obj) =>
+      keys.map((k) => {
+        const v = String(obj[k] ?? '')
+        return NULL_VALS.has(v.toLowerCase()) ? '' : v
+      })
+    )
+    return { headers, rows }
+  }
+
+  // Try JSON array of objects
+  try {
+    const parsed = JSON.parse(raw)
+    if (Array.isArray(parsed) && parsed.length > 0 && typeof parsed[0] === 'object') {
+      const keys = Object.keys(parsed[0])
+      const headers = keys.map((k) => XN_HEADER_MAP[k] ?? k)
+      const rows = parsed.map((item: Record<string, unknown>) =>
+        keys.map((k) => String(item[k] ?? ''))
+      )
+      return { headers, rows }
+    }
+  } catch { /* not JSON */ }
+
+  const lines = raw.trim().split('\n').filter((l) => l.trim())
+  if (lines.length < 2) return null
+
+  // Detect delimiter: pipe, semicolon, or tab
+  const firstLine = lines[0]
+  let delimiter: string | null = null
+  if (firstLine.includes('|')) delimiter = '|'
+  else if (firstLine.includes(';')) delimiter = ';'
+  else if (firstLine.includes('\t')) delimiter = '\t'
+
+  if (delimiter) {
+    const allRows = lines.map((l) => l.split(delimiter!).map((c) => c.trim()))
+    if (allRows[0].length > 1) {
+      return {
+        headers: allRows[0],
+        rows: allRows.slice(1).filter((r) => r.some((c) => c)),
+      }
+    }
+  }
+
+  return null
+}
+
+function XetNghiemTable({ value }: { value: string }) {
+  const parsed = parseXetNghiemTable(value)
+
+  if (!parsed) {
+    return (
+      <pre className="text-xs text-on-surface font-mono bg-surface-container-low rounded-lg p-md leading-relaxed whitespace-pre-wrap break-all col-span-2">
+        {value}
+      </pre>
+    )
+  }
+
+  return (
+    <div className="overflow-x-auto rounded-lg border border-outline-variant">
+      <table className="w-full text-xs border-collapse">
+        <thead>
+          <tr className="bg-surface-container-low">
+            {parsed.headers.map((h, i) => (
+              <th
+                key={i}
+                className="text-left px-sm py-xs font-semibold text-on-surface-variant border-b border-outline-variant text-[11px] uppercase tracking-wide whitespace-nowrap"
+              >
+                {h}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {parsed.rows.map((row, i) => (
+            <tr key={i} className={i % 2 === 0 ? 'bg-white' : 'bg-surface-container-low/30'}>
+              {row.map((cell, j) => (
+                <td key={j} className="px-sm py-xs text-on-surface border-b border-outline-variant/50 align-top">
+                  {cell || <span className="text-on-surface-variant/40 italic">—</span>}
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  )
+}
+
+function CdhaAccordion({ value }: { value: string }) {
+  const items = parsePyDictList(value)
+
+  if (!items) {
+    return (
+      <pre className="text-xs text-on-surface font-mono bg-surface-container-low rounded-lg p-md leading-relaxed whitespace-pre-wrap break-all col-span-2">
+        {value}
+      </pre>
+    )
+  }
+
+  return (
+    <div className="col-span-2 flex flex-col gap-xs">
+      {items.map((item, i) => {
+        const date = item['ngay'] || item['Ngày'] || `#${i + 1}`
+        const description = item['mo_ta'] || item['Mô tả'] || ''
+        return (
+          <details key={i} className="group rounded-lg border border-outline-variant overflow-hidden">
+            <summary className="flex items-center justify-between gap-md px-md py-sm cursor-pointer select-none bg-surface-container-low/50 hover:bg-surface-container-low list-none">
+              <span className="text-xs font-semibold text-on-surface">{date}</span>
+              <span className="material-symbols-outlined text-[16px] text-on-surface-variant transition-transform group-open:rotate-180">
+                expand_more
+              </span>
+            </summary>
+            <div className="px-md py-sm bg-white text-sm text-on-surface leading-relaxed whitespace-pre-wrap">
+              {description || <Empty />}
+            </div>
+          </details>
+        )
+      })}
+    </div>
+  )
+}
 
 function formatNumber(val: string): string {
   const n = parseFloat(val)
@@ -180,6 +364,16 @@ function FieldValue({ field, value }: { field: FieldDef; value: string }) {
     return (
       <p className="text-sm text-on-surface leading-relaxed whitespace-pre-wrap col-span-2">{value}</p>
     )
+  }
+
+  if (field.type === 'xetnghiem_table') {
+    if (isEmpty) return <Empty />
+    return <XetNghiemTable value={value} />
+  }
+
+  if (field.type === 'cdha_accordion') {
+    if (isEmpty) return <Empty />
+    return <CdhaAccordion value={value} />
   }
 
   if (field.type === 'list') {
@@ -213,7 +407,7 @@ function SectionCard({ section, data }: { section: SectionDef; data: Record<stri
         <div className="grid grid-cols-1 gap-md">
           {section.fields.map((field) => {
             const value = data[field.key] ?? ''
-            const isLongOrList = field.type === 'long' || field.type === 'list'
+            const isLongOrList = field.type === 'long' || field.type === 'list' || field.type === 'xetnghiem_table'
             return (
               <div
                 key={field.key}
