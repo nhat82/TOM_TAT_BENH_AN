@@ -1,4 +1,4 @@
-type FieldType = 'text' | 'long' | 'list' | 'gender' | 'bool' | 'xetnghiem_table' | 'cdha_accordion' | 'thuoc_table'
+type FieldType = 'text' | 'long' | 'list' | 'gender' | 'bool' | 'xetnghiem_table' | 'cdha_accordion' | 'thuoc_table' | 'dichvu_table'
 
 interface FieldDef {
   key: string
@@ -147,7 +147,7 @@ const SECTIONS: SectionDef[] = [
     icon: 'medical_services',
     fields: [
       { key: 'so_dich_vu', label: 'Tổng số dịch vụ' },
-      { key: 'ds_dich_vu', label: 'Danh sách dịch vụ', type: 'list' },
+      { key: 'ds_dich_vu', label: 'Danh sách dịch vụ', type: 'dichvu_table' },
     ],
   },
 ]
@@ -166,6 +166,13 @@ const THUOC_HEADER_MAP: Record<string, string> = {
   lieu_dung: 'Liều dùng',
   lan_dung: 'Lần dùng',
   don_vi: 'Đơn vị',
+}
+
+const DICHVU_HEADER_MAP: Record<string, string> = {
+  ten: 'Tên dịch vụ',
+  ngay: 'Ngày',
+  so_luong: 'Số lượng',
+  don_gia: 'Đơn giá',
 }
 
 function evalPythonLiteral(s: string): unknown {
@@ -401,6 +408,11 @@ function FieldValue({ field, value }: { field: FieldDef; value: string }) {
     return <DataTable value={value} headerMap={THUOC_HEADER_MAP} />
   }
 
+  if (field.type === 'dichvu_table') {
+    if (isEmpty) return <Empty />
+    return <DataTable value={value} headerMap={DICHVU_HEADER_MAP} />
+  }
+
   if (field.type === 'cdha_accordion') {
     if (isEmpty) return <Empty />
     return <CdhaAccordion value={value} />
@@ -437,7 +449,7 @@ function SectionCard({ section, data }: { section: SectionDef; data: Record<stri
         <div className="grid grid-cols-1 gap-md">
           {section.fields.map((field) => {
             const value = data[field.key] ?? ''
-            const isLongOrList = field.type === 'long' || field.type === 'list' || field.type === 'xetnghiem_table' || field.type === 'thuoc_table'
+            const isLongOrList = field.type === 'long' || field.type === 'list' || field.type === 'xetnghiem_table' || field.type === 'thuoc_table' || field.type === 'dichvu_table'
             return (
               <div
                 key={field.key}
