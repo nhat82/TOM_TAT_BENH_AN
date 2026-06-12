@@ -137,7 +137,7 @@ export default function PatientSummaryPanel({ patientId: initialPatientId }: { p
             type="text"
             value={patientId}
             onChange={(e) => setPatientId(e.target.value)}
-            placeholder="vd. BN0052"
+            placeholder="vd. BN0012"
             className="w-full bg-white border border-outline-variant rounded-lg px-md py-2 text-sm focus:ring-1 focus:ring-primary focus:border-primary outline-none"
           />
         </div>
