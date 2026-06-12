@@ -1,4 +1,4 @@
-type FieldType = 'text' | 'long' | 'list' | 'gender' | 'bool' | 'xetnghiem_table' | 'cdha_accordion'
+type FieldType = 'text' | 'long' | 'list' | 'gender' | 'bool' | 'xetnghiem_table' | 'cdha_accordion' | 'thuoc_table'
 
 interface FieldDef {
   key: string
@@ -131,7 +131,7 @@ const SECTIONS: SectionDef[] = [
     title: 'Chẩn đoán hình ảnh',
     icon: 'radiology',
     fields: [
-      { key: 'ds_cdha', label: 'Danh sách CĐHA', type: 'cdha_accordion' },
+      { key: 'ds_cdha', label: 'Danh sách chẩn đoán hình ảnh', type: 'cdha_accordion' },
     ],
   },
   {
@@ -139,7 +139,7 @@ const SECTIONS: SectionDef[] = [
     icon: 'pill',
     fields: [
       { key: 'so_thuoc', label: 'Tổng số thuốc' },
-      { key: 'ds_thuoc', label: 'Danh sách thuốc', type: 'list' },
+      { key: 'ds_thuoc', label: 'Danh sách thuốc', type: 'thuoc_table' },
     ],
   },
   {
@@ -160,62 +160,79 @@ const XN_HEADER_MAP: Record<string, string> = {
   ngay: 'Ngày',
 }
 
-function pyDictToObj(s: string): Record<string, string> | null {
-  // Convert Python-style single-quoted dict to JSON and parse
-  try {
-    const json = s
-      .replace(/'/g, '"')
-      .replace(/\bNone\b/g, 'null')
-      .replace(/\bTrue\b/g, 'true')
-      .replace(/\bFalse\b/g, 'false')
-    return JSON.parse(json)
-  } catch {
-    return null
-  }
+const THUOC_HEADER_MAP: Record<string, string> = {
+  ten: 'Tên thuốc',
+  duong_dung: 'Đường dùng',
+  lieu_dung: 'Liều dùng',
+  lan_dung: 'Lần dùng',
+  don_vi: 'Đơn vị',
+}
+
+function evalPythonLiteral(s: string): unknown {
+  const js = s
+    .replace(/\bNone\b/g, 'null')
+    .replace(/\bTrue\b/g, 'true')
+    .replace(/\bFalse\b/g, 'false')
+  // eslint-disable-next-line no-new-func
+  return new Function(`return (${js})`)()
 }
 
 function parsePyDictList(raw: string): Record<string, string>[] | null {
   const trimmed = raw.trim()
 
-  // Single dict: {'key': 'val', ...}
-  if (trimmed.startsWith('{')) {
-    const obj = pyDictToObj(trimmed)
-    return obj ? [obj] : null
-  }
-
-  // List of dicts: [{'key': 'val'}, ...]
-  if (trimmed.startsWith('[')) {
+  if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
+    // Fast path: simple single-quote swap (works unless values contain apostrophes)
     try {
       const json = trimmed
         .replace(/'/g, '"')
         .replace(/\bNone\b/g, 'null')
         .replace(/\bTrue\b/g, 'true')
         .replace(/\bFalse\b/g, 'false')
-      const arr = JSON.parse(json)
-      if (Array.isArray(arr)) return arr
+      const parsed = JSON.parse(json)
+      if (Array.isArray(parsed)) return parsed
+      if (parsed && typeof parsed === 'object') return [parsed as Record<string, string>]
+    } catch { /* fall through */ }
+
+    // Robust path: handles mixed quotes and apostrophes (e.g. "Acetate Ringer's")
+    try {
+      const parsed = evalPythonLiteral(trimmed)
+      if (Array.isArray(parsed)) return parsed as Record<string, string>[]
+      if (parsed && typeof parsed === 'object') return [parsed as Record<string, string>]
     } catch { /* fall through */ }
   }
 
   // Newline-separated dicts
   const lines = trimmed.split('\n').map((l) => l.trim()).filter((l) => l.startsWith('{'))
   if (lines.length > 0) {
-    const objs = lines.map(pyDictToObj).filter(Boolean) as Record<string, string>[]
+    const objs: Record<string, string>[] = []
+    for (const line of lines) {
+      try {
+        const obj = evalPythonLiteral(line)
+        if (obj && typeof obj === 'object') objs.push(obj as Record<string, string>)
+      } catch { /* skip */ }
+    }
     if (objs.length > 0) return objs
   }
 
   return null
 }
 
-function parseXetNghiemTable(raw: string): { headers: string[]; rows: string[][] } | null {
+function parseDictListToTable(
+  raw: string,
+  headerMap: Record<string, string>
+): { headers: string[]; rows: string[][] } | null {
   if (!raw?.trim()) return null
   const lower = raw.trim().toLowerCase()
   if (lower === 'null' || lower === 'none' || lower === 'nan') return null
 
+  // Strip "[N mục]" count prefix (e.g. "[543 mục]  {'ten': ...}")
+  const stripped = raw.trim().replace(/^\[\d+\s+mục\]\s*/i, '')
+
   // Try Python-style dict/list (most common format from DB)
-  const pyObjs = parsePyDictList(raw)
+  const pyObjs = parsePyDictList(stripped)
   if (pyObjs && pyObjs.length > 0) {
     const keys = Object.keys(pyObjs[0])
-    const headers = keys.map((k) => XN_HEADER_MAP[k] ?? k)
+    const headers = keys.map((k) => headerMap[k] ?? k)
     const NULL_VALS = new Set(['', '0001-01-01t00:00:00', '0001-01-01 00:00:00'])
     const rows = pyObjs.map((obj) =>
       keys.map((k) => {
@@ -228,10 +245,10 @@ function parseXetNghiemTable(raw: string): { headers: string[]; rows: string[][]
 
   // Try JSON array of objects
   try {
-    const parsed = JSON.parse(raw)
+    const parsed = JSON.parse(stripped)
     if (Array.isArray(parsed) && parsed.length > 0 && typeof parsed[0] === 'object') {
       const keys = Object.keys(parsed[0])
-      const headers = keys.map((k) => XN_HEADER_MAP[k] ?? k)
+      const headers = keys.map((k) => headerMap[k] ?? k)
       const rows = parsed.map((item: Record<string, unknown>) =>
         keys.map((k) => String(item[k] ?? ''))
       )
@@ -239,7 +256,7 @@ function parseXetNghiemTable(raw: string): { headers: string[]; rows: string[][]
     }
   } catch { /* not JSON */ }
 
-  const lines = raw.trim().split('\n').filter((l) => l.trim())
+  const lines = stripped.split('\n').filter((l) => l.trim())
   if (lines.length < 2) return null
 
   // Detect delimiter: pipe, semicolon, or tab
@@ -262,8 +279,8 @@ function parseXetNghiemTable(raw: string): { headers: string[]; rows: string[][]
   return null
 }
 
-function XetNghiemTable({ value }: { value: string }) {
-  const parsed = parseXetNghiemTable(value)
+function DataTable({ value, headerMap }: { value: string; headerMap: Record<string, string> }) {
+  const parsed = parseDictListToTable(value, headerMap)
 
   if (!parsed) {
     return <Empty />
@@ -376,7 +393,12 @@ function FieldValue({ field, value }: { field: FieldDef; value: string }) {
 
   if (field.type === 'xetnghiem_table') {
     if (isEmpty) return <Empty />
-    return <XetNghiemTable value={value} />
+    return <DataTable value={value} headerMap={XN_HEADER_MAP} />
+  }
+
+  if (field.type === 'thuoc_table') {
+    if (isEmpty) return <Empty />
+    return <DataTable value={value} headerMap={THUOC_HEADER_MAP} />
   }
 
   if (field.type === 'cdha_accordion') {
@@ -415,7 +437,7 @@ function SectionCard({ section, data }: { section: SectionDef; data: Record<stri
         <div className="grid grid-cols-1 gap-md">
           {section.fields.map((field) => {
             const value = data[field.key] ?? ''
-            const isLongOrList = field.type === 'long' || field.type === 'list' || field.type === 'xetnghiem_table'
+            const isLongOrList = field.type === 'long' || field.type === 'list' || field.type === 'xetnghiem_table' || field.type === 'thuoc_table'
             return (
               <div
                 key={field.key}
