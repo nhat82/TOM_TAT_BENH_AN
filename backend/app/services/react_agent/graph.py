@@ -32,7 +32,8 @@ def call_llm(state: AgentState):
     system_content = SYSTEM_PROMPT
     if state.patient_id:
         system_content += f"\n\nThe current patient ID is: {state.patient_id}. Only query records for this patient."
-        system_content += f"The current date is {datetime.today().strftime("%Y-%m-%d")}"
+        system_content += f"The current date is {datetime.today().strftime('%Y-%m-%d')}"
+
 
     messages = state.messages
     if not any(isinstance(m, dict) and m.get("role") == "system" for m in messages):
