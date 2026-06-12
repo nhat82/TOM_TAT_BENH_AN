@@ -8,14 +8,89 @@ treated as numbered headings; everything else becomes body paragraph text.
 from __future__ import annotations
 
 import io
+import logging
 import re
-from datetime import date
+from datetime import date, datetime
 
 from docx import Document
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.shared import Pt, RGBColor, Inches
 from docx.oxml.ns import qn
 from docx.oxml import OxmlElement
+from sqlalchemy import text
+
+from app.services.database import db
+
+log = logging.getLogger(__name__)
+
+# ── patient info helpers ──────────────────────────────────────────────────────
+
+_NULL_VALUES = {"nan", "none", "", "0", "0.0", "0001-01-01 00:00:00"}
+
+
+def _clean(val) -> str:
+    if val is None:
+        return ""
+    s = str(val).strip()
+    return "" if s.lower() in _NULL_VALUES else s
+
+
+def _fmt_date(val) -> str:
+    """Return dd/mm/yyyy string from a date/datetime/string value, or ''."""
+    if val is None:
+        return ""
+    s = str(val).strip()
+    if s.lower() in _NULL_VALUES:
+        return ""
+    try:
+        return datetime.strptime(s[:10], "%Y-%m-%d").strftime("%d/%m/%Y")
+    except ValueError:
+        return s
+
+
+def fetch_patient_info(pid: str) -> dict:
+    """Query medical_records for patient demographics; returns display-ready strings."""
+    try:
+        with db._engine.connect() as conn:
+            result = conn.execute(
+                text(
+                    "SELECT birthdayyear, "
+                    "dm_tinhcode, medicalrecorddate_in, medicalrecorddate_out "
+                    "FROM medical_records WHERE ma_bn_an = :pid LIMIT 1"
+                ),
+                {"pid": pid},
+            )
+            row = result.mappings().first()
+    except Exception:
+        log.warning("Could not fetch patient demographics for %s", pid)
+        return {}
+
+    if not row:
+        return {}
+
+    gender_map = {"1": "Nam", "2": "Nữ"}
+    birth_year = _clean(row.get("birthdayyear"))
+    age = ""
+    if birth_year:
+        try:
+            age = str(date.today().year - int(birth_year))
+        except ValueError:
+            pass
+
+    gender_raw = _clean(row.get("dm_gioitinhid"))
+    gender = gender_map.get(gender_raw, gender_raw)
+
+    _na = "N/A"
+    return {
+        "patient_name":   _clean(row.get("ho_ten"))                    or _na,
+        "birthday":       birth_year                                    or _na,
+        "age":            age                                           or _na,
+        "gender":         gender                                        or _na,
+        "id_number":      _clean(row.get("cccd"))                      or _na,
+        "province":        _clean(row.get("dm_tinhcode"))                or _na,
+        "admission_date": _fmt_date(row.get("medicalrecorddate_in"))    or _na,
+        "discharge_date": _fmt_date(row.get("medicalrecorddate_out"))   or _na,
+    }
 
 
 _SECTION_RE = re.compile(r"^\*{0,2}(\d+)\.\s+(.+?)\*{0,2}$")
@@ -70,9 +145,52 @@ def _parse_summary(text: str) -> list[tuple[str, str]]:
 
 # ── public API ────────────────────────────────────────────────────────────────
 
-def build_docx(patient_id: str, summary: str) -> bytes:
+_PATIENT_LABELS = [
+    ("patient_name",   "Họ tên"),
+    ("birthday",       "Năm sinh"),
+    ("age",            "Tuổi"),
+    ("gender",         "Giới tính"),
+    ("ethnicity",      "Dân tộc"),
+    ("address",        "Địa chỉ"),
+    ("id_number",      "Số CMND/CCCD"),
+    ("admission_date", "Ngày nhập viện"),
+    ("discharge_date", "Ngày xuất viện"),
+]
+
+
+def _add_patient_info_table(doc: Document, info: dict) -> None:
+    rows = [(label, info.get(key, "")) for key, label in _PATIENT_LABELS if info.get(key)]
+    if not rows:
+        return
+
+    table = doc.add_table(rows=len(rows), cols=2)
+    table.style = "Table Grid"
+    col_widths = (Inches(1.8), Inches(4.0))
+
+    for i, (label, value) in enumerate(rows):
+        row = table.rows[i]
+        row.cells[0].width = col_widths[0]
+        row.cells[1].width = col_widths[1]
+
+        _set_cell_bg(row.cells[0], "EAF2FF")
+
+        label_p = row.cells[0].paragraphs[0]
+        label_run = label_p.add_run(label)
+        label_run.bold = True
+        label_run.font.size = Pt(10)
+
+        value_p = row.cells[1].paragraphs[0]
+        value_run = value_p.add_run(value)
+        value_run.font.size = Pt(10)
+
+    doc.add_paragraph()  # spacer after table
+
+
+def build_docx(patient_id: str, summary: str, patient_info: dict | None = None) -> bytes:
     """
     Render *summary* as a formatted DOCX and return raw bytes.
+    *patient_info* keys: patient_name, birthday, age, gender, ethnicity,
+                         address, id_number, admission_date, discharge_date
     """
     doc = Document()
 
@@ -101,6 +219,10 @@ def build_docx(patient_id: str, summary: str) -> bytes:
 
     _add_horizontal_rule(doc)
     doc.add_paragraph()  # spacer
+
+    # ── patient demographics table ────────────────────────────────────────────
+    if patient_info:
+        _add_patient_info_table(doc, patient_info)
 
     # ── body ──────────────────────────────────────────────────────────────────
     for kind, content in _parse_summary(summary):

@@ -1,4 +1,4 @@
-type FieldType = 'text' | 'long' | 'list' | 'gender' | 'bool'
+type FieldType = 'text' | 'long' | 'list' | 'gender' | 'bool' | 'xetnghiem_table' | 'cdha_accordion' | 'thuoc_table' | 'dichvu_table'
 
 interface FieldDef {
   key: string
@@ -124,14 +124,14 @@ const SECTIONS: SectionDef[] = [
     title: 'Xét nghiệm',
     icon: 'biotech',
     fields: [
-      { key: 'ds_xet_nghiem', label: 'Danh sách xét nghiệm', type: 'list' },
+      { key: 'ds_xet_nghiem', label: 'Danh sách xét nghiệm', type: 'xetnghiem_table' },
     ],
   },
   {
     title: 'Chẩn đoán hình ảnh',
     icon: 'radiology',
     fields: [
-      { key: 'ds_cdha', label: 'Danh sách CĐHA', type: 'list' },
+      { key: 'ds_cdha', label: 'Danh sách chẩn đoán hình ảnh', type: 'cdha_accordion' },
     ],
   },
   {
@@ -139,7 +139,7 @@ const SECTIONS: SectionDef[] = [
     icon: 'pill',
     fields: [
       { key: 'so_thuoc', label: 'Tổng số thuốc' },
-      { key: 'ds_thuoc', label: 'Danh sách thuốc', type: 'list' },
+      { key: 'ds_thuoc', label: 'Danh sách thuốc', type: 'thuoc_table' },
     ],
   },
   {
@@ -147,10 +147,226 @@ const SECTIONS: SectionDef[] = [
     icon: 'medical_services',
     fields: [
       { key: 'so_dich_vu', label: 'Tổng số dịch vụ' },
-      { key: 'ds_dich_vu', label: 'Danh sách dịch vụ', type: 'list' },
+      { key: 'ds_dich_vu', label: 'Danh sách dịch vụ', type: 'dichvu_table' },
     ],
   },
 ]
+
+const XN_HEADER_MAP: Record<string, string> = {
+  ten_xn: 'Tên xét nghiệm',
+  ket_qua: 'Kết quả',
+  don_vi: 'Đơn vị',
+  khoang_bt: 'Khoảng bình thường',
+  ngay: 'Ngày',
+}
+
+const THUOC_HEADER_MAP: Record<string, string> = {
+  ten: 'Tên thuốc',
+  duong_dung: 'Đường dùng',
+  lieu_dung: 'Liều dùng',
+  lan_dung: 'Lần dùng',
+  don_vi: 'Đơn vị',
+}
+
+const DICHVU_HEADER_MAP: Record<string, string> = {
+  ten: 'Tên dịch vụ',
+  ngay: 'Ngày',
+  so_luong: 'Số lượng',
+  don_gia: 'Đơn giá',
+}
+
+function evalPythonLiteral(s: string): unknown {
+  const js = s
+    .replace(/\bNone\b/g, 'null')
+    .replace(/\bTrue\b/g, 'true')
+    .replace(/\bFalse\b/g, 'false')
+  // eslint-disable-next-line no-new-func
+  return new Function(`return (${js})`)()
+}
+
+function parsePyDictList(raw: string): Record<string, string>[] | null {
+  const trimmed = raw.trim()
+
+  if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
+    // Fast path: simple single-quote swap (works unless values contain apostrophes)
+    try {
+      const json = trimmed
+        .replace(/'/g, '"')
+        .replace(/\bNone\b/g, 'null')
+        .replace(/\bTrue\b/g, 'true')
+        .replace(/\bFalse\b/g, 'false')
+      const parsed = JSON.parse(json)
+      if (Array.isArray(parsed)) return parsed
+      if (parsed && typeof parsed === 'object') return [parsed as Record<string, string>]
+    } catch { /* fall through */ }
+
+    // Robust path: handles mixed quotes and apostrophes (e.g. "Acetate Ringer's")
+    try {
+      const parsed = evalPythonLiteral(trimmed)
+      if (Array.isArray(parsed)) return parsed as Record<string, string>[]
+      if (parsed && typeof parsed === 'object') return [parsed as Record<string, string>]
+    } catch { /* fall through */ }
+  }
+
+  // Newline-separated dicts
+  const lines = trimmed.split('\n').map((l) => l.trim()).filter((l) => l.startsWith('{'))
+  if (lines.length > 0) {
+    const objs: Record<string, string>[] = []
+    for (const line of lines) {
+      try {
+        const obj = evalPythonLiteral(line)
+        if (obj && typeof obj === 'object') objs.push(obj as Record<string, string>)
+      } catch { /* skip */ }
+    }
+    if (objs.length > 0) return objs
+  }
+
+  return null
+}
+
+function parseDictListToTable(
+  raw: string,
+  headerMap: Record<string, string>
+): { headers: string[]; rows: string[][] } | null {
+  if (!raw?.trim()) return null
+  const lower = raw.trim().toLowerCase()
+  if (lower === 'null' || lower === 'none' || lower === 'nan') return null
+
+  // Strip "[N mục]" count prefix (e.g. "[543 mục]  {'ten': ...}")
+  const stripped = raw.trim().replace(/^\[\d+\s+mục\]\s*/i, '')
+
+  // Try Python-style dict/list (most common format from DB)
+  const pyObjs = parsePyDictList(stripped)
+  if (pyObjs && pyObjs.length > 0) {
+    const keys = Object.keys(pyObjs[0])
+    const headers = keys.map((k) => headerMap[k] ?? k)
+    const NULL_VALS = new Set(['', '0001-01-01t00:00:00', '0001-01-01 00:00:00'])
+    const rows = pyObjs.map((obj) =>
+      keys.map((k) => {
+        const v = String(obj[k] ?? '')
+        return NULL_VALS.has(v.toLowerCase()) ? '' : v
+      })
+    )
+    return { headers, rows }
+  }
+
+  // Try JSON array of objects
+  try {
+    const parsed = JSON.parse(stripped)
+    if (Array.isArray(parsed) && parsed.length > 0 && typeof parsed[0] === 'object') {
+      const keys = Object.keys(parsed[0])
+      const headers = keys.map((k) => headerMap[k] ?? k)
+      const rows = parsed.map((item: Record<string, unknown>) =>
+        keys.map((k) => String(item[k] ?? ''))
+      )
+      return { headers, rows }
+    }
+  } catch { /* not JSON */ }
+
+  const lines = stripped.split('\n').filter((l) => l.trim())
+  if (lines.length < 2) return null
+
+  // Detect delimiter: pipe, semicolon, or tab
+  const firstLine = lines[0]
+  let delimiter: string | null = null
+  if (firstLine.includes('|')) delimiter = '|'
+  else if (firstLine.includes(';')) delimiter = ';'
+  else if (firstLine.includes('\t')) delimiter = '\t'
+
+  if (delimiter) {
+    const allRows = lines.map((l) => l.split(delimiter!).map((c) => c.trim()))
+    if (allRows[0].length > 1) {
+      return {
+        headers: allRows[0],
+        rows: allRows.slice(1).filter((r) => r.some((c) => c)),
+      }
+    }
+  }
+
+  return null
+}
+
+function DataTable({ value, headerMap }: { value: string; headerMap: Record<string, string> }) {
+  const parsed = parseDictListToTable(value, headerMap)
+
+  if (!parsed) {
+    return <Empty />
+  }
+
+  return (
+    <div className="overflow-x-auto rounded-lg border border-outline-variant">
+      <table className="w-full text-xs border-collapse">
+        <thead>
+          <tr className="bg-surface-container-low">
+            {parsed.headers.map((h, i) => (
+              <th
+                key={i}
+                className="text-left px-sm py-xs font-semibold text-on-surface-variant border-b border-outline-variant text-[11px] uppercase tracking-wide whitespace-nowrap"
+              >
+                {h}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {parsed.rows.map((row, i) => (
+            <tr key={i} className={i % 2 === 0 ? 'bg-white' : 'bg-surface-container-low/30'}>
+              {row.map((cell, j) => (
+                <td key={j} className="px-sm py-xs text-on-surface border-b border-outline-variant/50 align-top">
+                  {cell || <span className="text-on-surface-variant/40 italic">—</span>}
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  )
+}
+
+function formatDMY(raw: string): string {
+  const d = new Date(raw)
+  if (isNaN(d.getTime())) return raw
+  const day = String(d.getDate()).padStart(2, '0')
+  const month = String(d.getMonth() + 1).padStart(2, '0')
+  const year = d.getFullYear()
+  return `${day}/${month}/${year}`
+}
+
+function CdhaAccordion({ value }: { value: string }) {
+  const items = parsePyDictList(value)
+
+  if (!items) {
+    return (
+      <pre className="text-xs text-on-surface font-mono bg-surface-container-low rounded-lg p-md leading-relaxed whitespace-pre-wrap break-all col-span-2">
+        {value}
+      </pre>
+    )
+  }
+
+  return (
+    <div className="col-span-2 flex flex-col gap-xs">
+      {items.map((item, i) => {
+        const rawDate = item['ngay'] || item['Ngày'] || ''
+        const date = rawDate ? formatDMY(rawDate) : `#${i + 1}`
+        const description = item['mo_ta'] || item['Mô tả'] || ''
+        return (
+          <details key={i} className="group rounded-lg border border-outline-variant overflow-hidden">
+            <summary className="flex items-center justify-between gap-md px-md py-sm cursor-pointer select-none bg-surface-container-low/50 hover:bg-surface-container-low list-none">
+              <span className="text-xs font-semibold text-on-surface">{date}</span>
+              <span className="material-symbols-outlined text-[16px] text-on-surface-variant transition-transform group-open:rotate-180">
+                expand_more
+              </span>
+            </summary>
+            <div className="px-md py-sm bg-white text-sm text-on-surface leading-relaxed whitespace-pre-wrap">
+              {description || <Empty />}
+            </div>
+          </details>
+        )
+      })}
+    </div>
+  )
+}
 
 function formatNumber(val: string): string {
   const n = parseFloat(val)
@@ -180,6 +396,26 @@ function FieldValue({ field, value }: { field: FieldDef; value: string }) {
     return (
       <p className="text-sm text-on-surface leading-relaxed whitespace-pre-wrap col-span-2">{value}</p>
     )
+  }
+
+  if (field.type === 'xetnghiem_table') {
+    if (isEmpty) return <Empty />
+    return <DataTable value={value} headerMap={XN_HEADER_MAP} />
+  }
+
+  if (field.type === 'thuoc_table') {
+    if (isEmpty) return <Empty />
+    return <DataTable value={value} headerMap={THUOC_HEADER_MAP} />
+  }
+
+  if (field.type === 'dichvu_table') {
+    if (isEmpty) return <Empty />
+    return <DataTable value={value} headerMap={DICHVU_HEADER_MAP} />
+  }
+
+  if (field.type === 'cdha_accordion') {
+    if (isEmpty) return <Empty />
+    return <CdhaAccordion value={value} />
   }
 
   if (field.type === 'list') {
@@ -213,7 +449,7 @@ function SectionCard({ section, data }: { section: SectionDef; data: Record<stri
         <div className="grid grid-cols-1 gap-md">
           {section.fields.map((field) => {
             const value = data[field.key] ?? ''
-            const isLongOrList = field.type === 'long' || field.type === 'list'
+            const isLongOrList = field.type === 'long' || field.type === 'list' || field.type === 'xetnghiem_table' || field.type === 'thuoc_table' || field.type === 'dichvu_table'
             return (
               <div
                 key={field.key}

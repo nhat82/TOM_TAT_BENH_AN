@@ -6,9 +6,10 @@ pydantic-settings
 python-dotenv
 requests
 numpy
-pandas
-chromadb
 langchain-core
 langchain_google_genai
 langgraph
 litellm
+psycopg2
+langchain
+langchain-community
