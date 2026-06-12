@@ -18,6 +18,8 @@ def get_patient_info_from_id(patient_id: str):
             {"pid": patient_id.strip()},
         )
         rows = result.mappings().all()
-        
+    
+    if not rows: 
+        return None
     records = [{k: _clean(v) for k, v in row.items()} for row in rows]
     return records[0]
