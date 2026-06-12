@@ -17,9 +17,9 @@ def get_patient_info_from_id(patient_id: str):
             text("SELECT * FROM medical_records WHERE ma_bn_an = :pid"),
             {"pid": patient_id.strip()},
         )
-        rows = result.mappings().all()
+        row = result.mappings().first()
     
-    if not rows: 
+    if not row: 
         return None
-    records = [{k: _clean(v) for k, v in row.items()} for row in rows]
-    return records[0]
+    record = {k: _clean(v) for k, v in row.items()}
+    return record
