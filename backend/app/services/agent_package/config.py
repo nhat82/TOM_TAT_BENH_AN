@@ -1,27 +1,28 @@
+import os
 from pydantic_settings import BaseSettings
-from pydantic import BaseModel, SecretStr
+from pydantic import BaseModel, Field, SecretStr
 
 class ModelConfig(BaseModel): 
     model_name: str
     temperature: float = 0.0
     fallback_model_name: str | None = None
     
-class Settings(BaseSettings): 
-    db_url: SecretStr
-    model_name: str 
-    max_sql_row: int 
-    max_output_string_length: int
-    gemini_api_key = SecretStr
+class Settings(BaseSettings):
+    db_url: SecretStr = Field(alias="PG_URI")
+    max_sql_row: int = 1
+    max_output_string_length: int = 999999999
+    gemini_api_key: SecretStr = Field(alias="GOOGLE_API_KEY")
+    langsmith_api_key: SecretStr = Field(alias="LANGSMITH_API_KEY")
+    langsmith_tracing: SecretStr = Field(alias="LANGSMITH_TRACING")
+    chatbot_agent_model : ModelConfig = ModelConfig(model_name="gemini-3.1-flash-lite")
+    summary_agent_model : ModelConfig = ModelConfig(model_name="gemini-3.1-flash-lite")
     
-    summary_agent_model = ModelConfig(
-        model_name="gemini-3.1-flash-lite"
-    )
-    chatbot_agent_model = ModelConfig(
-        model_name="gemini-2.5-flash"
-    )
-    
-    class Config: 
+    class Config:
         env_file = ".env"
         env_file_encoding = "utf-8"
+        populate_by_name = True
         
 settings = Settings()
+
+os.environ["LANGSMITH_API_KEY"] = settings.langsmith_api_key.get_secret_value()
+os.environ["LANGSMITH_TRACING"] = settings.langsmith_tracing.get_secret_value()
