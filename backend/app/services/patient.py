@@ -1,4 +1,4 @@
-from .database import db
+from .database import engine
 from sqlalchemy import text
 
 
@@ -12,7 +12,7 @@ def _clean(val) -> str:
     return "" if s.lower() in _NULL_VALUES else s
 
 def get_patient_info_from_id(patient_id: str):
-    with db._engine.connect() as conn:
+    with engine.connect() as conn:
         result = conn.execute(
             text("SELECT * FROM medical_records WHERE ma_bn_an = :pid"),
             {"pid": patient_id.strip()},

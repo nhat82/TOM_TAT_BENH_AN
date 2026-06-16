@@ -1,5 +1,5 @@
 from langchain_community.utilities import SQLDatabase
-from .config import settings
+from app.config import settings
 
 db = SQLDatabase.from_uri(
     settings.db_url.get_secret_value(), 

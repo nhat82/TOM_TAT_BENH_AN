@@ -1,9 +1,10 @@
 from langchain.agents import create_agent
 from langchain_google_genai import ChatGoogleGenerativeAI
-from ..config import settings
+from app.config import settings
 from ..tools import sql_tools
 from ..prompts import chatbot_system_prompt
 from ..schemas import PatientAgentState
+from langgraph.checkpoint.memory import InMemorySaver
 
 chatbot_agent = create_agent(
     model=ChatGoogleGenerativeAI(
@@ -13,10 +14,7 @@ chatbot_agent = create_agent(
         ),
     tools=sql_tools, 
     system_prompt=chatbot_system_prompt,
-    state_schema=PatientAgentState
+    state_schema=PatientAgentState, 
+    checkpointer=InMemorySaver()
 )
 
-# print(chatbot_agent.invoke({
-#     "patient_id": "BN0012",          
-#     "messages": [("user", "bệnh nhân bị gì?")]
-# }))
