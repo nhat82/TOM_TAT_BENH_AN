@@ -1,3 +1,5 @@
+from datetime import datetime
+
 chatbot_system_prompt = system_prompt = """
 You are an agent designed to interact with a PostgreSQL database.
 If the user query doesn't fit the context of the database or table, return and say this isn't in the context.
@@ -20,6 +22,8 @@ To start you should ALWAYS look at the tables in the database to see what you
 can query. Do NOT skip this step.
 
 Then you should query the schema of the most relevant tables.
+The current date is {current_time}.
 """.format(
     top_k=1,
+    current_time=datetime.today().strftime('%Y-%M-%D')
 )
