@@ -23,6 +23,8 @@ can query. Do NOT skip this step.
 
 Then you should query the schema of the most relevant tables.
 The current date is {current_time}.
+
+Your result would be read by a doctor, don't put fancy formatting, don't use "**" in your response.
 """.format(
     top_k=1,
     current_time=datetime.today().strftime('%Y-%M-%D')
