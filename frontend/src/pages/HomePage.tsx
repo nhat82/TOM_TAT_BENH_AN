@@ -85,7 +85,7 @@ export default function HomePage() {
   const [page, setPage] = useState(1)
   const navigate = useNavigate()
 
-  const PAGE_SIZE = 4
+  const PAGE_SIZE = 5
 
   useEffect(() => {
     fetch('/api/patients')
@@ -273,12 +273,12 @@ export default function HomePage() {
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between gap-2.5">
-                        <span className="text-[16.5px] font-bold tracking-[-0.01em] text-[#1B2440] truncate">{p.name}</span>
+                        {/* <span className="text-[16.5px] font-bold tracking-[-0.01em] text-[#1B2440] truncate">{p.name}</span> */}
                         <span className="flex-none text-[12px] font-bold tracking-[0.04em] text-[#9AA3B8]">{p.code}</span>
                       </div>
-                      <div className="text-[13.5px] text-[#8A93A8] mt-0.5 mb-3">
+                      {/* <div className="text-[13.5px] text-[#8A93A8] mt-0.5 mb-3">
                         {[p.age > 0 ? `${p.age} tuổi` : null, p.dept].filter(Boolean).join(' · ')}
-                      </div>
+                      </div> */}
                       <div className="text-[14.5px] font-medium text-[#2A3454] mb-3.5 truncate">{p.diagnosis}</div>
                       <div className="flex items-center justify-between gap-2.5">
                         <span
