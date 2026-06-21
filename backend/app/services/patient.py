@@ -11,6 +11,20 @@ def _clean(val) -> str:
     s = str(val).strip()
     return "" if s.lower() in _NULL_VALUES else s
 
+def get_all_patients():
+    with engine.connect() as conn:
+        result = conn.execute(
+            text("""
+                SELECT ma_bn_an, birthdayyear,
+                       departmentid, medicalrecorddate_in, medicalrecorddate_out,
+                       chandoan_out_main, chandoan_in
+                FROM medical_records
+                ORDER BY medicalrecorddate_in DESC
+            """)
+        )
+        rows = result.mappings().all()
+    return [{k: _clean(v) for k, v in row.items()} for row in rows]
+
 def get_patient_info_from_id(patient_id: str):
     with engine.connect() as conn:
         result = conn.execute(
