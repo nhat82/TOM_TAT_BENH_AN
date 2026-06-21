@@ -4,9 +4,9 @@
 
 @layer base {
   body {
-    font-family: 'Inter', sans-serif;
+    font-family: 'Be Vietnam Pro', 'IBM Plex Sans', 'Inter', system-ui, sans-serif;
     -webkit-font-smoothing: antialiased;
-    @apply bg-white text-on-surface;
+    @apply bg-background text-on-surface;
   }
 
   #root {
@@ -30,8 +30,8 @@
 
   .citation-badge {
     border-radius: 4px;
-    background-color: #eff6ff;
-    color: #2563eb;
+    background-color: #ddeeff;
+    color: #0c3a5e;
     padding: 0 4px;
     font-size: 10px;
     vertical-align: super;
@@ -39,13 +39,16 @@
   }
 }
 
-::-webkit-scrollbar {
-  width: 6px;
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: none; }
 }
-::-webkit-scrollbar-track {
-  background: transparent;
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
 }
 ::-webkit-scrollbar-thumb {
-  background: #e2e8f0;
-  border-radius: 10px;
+  background: #d3dded;
+  border-radius: 8px;
 }
