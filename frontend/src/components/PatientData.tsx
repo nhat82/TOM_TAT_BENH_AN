@@ -11,12 +11,14 @@ interface SectionDef {
   title: string
   icon: string
   fields: FieldDef[]
+  columns?: number
 }
 
 const SECTIONS: SectionDef[] = [
   {
     title: 'Thông tin hành chính',
     icon: 'person',
+    columns: 2,
     fields: [
       { key: 'ma_bn_an', label: 'Mã bệnh án' },
       { key: 'ho_ten', label: 'Họ tên' },
@@ -29,6 +31,7 @@ const SECTIONS: SectionDef[] = [
   {
     title: 'Thông tin nhập/xuất viện',
     icon: 'local_hospital',
+    columns: 2,
     fields: [
       { key: 'dm_medicalrecordtypeid', label: 'Loại hồ sơ' },
       { key: 'dm_hinhthucvaovienid', label: 'Hình thức vào viện' },
@@ -39,10 +42,10 @@ const SECTIONS: SectionDef[] = [
       { key: 'roomid', label: 'Phòng' },
       { key: 'bedid', label: 'Giường' },
       { key: 'medicalrecorddate_kb', label: 'Ngày khám bệnh' },
+      { key: 'isbn_ut', label: 'Số BHYT' },
       { key: 'lydobnvaonoitru', label: 'Lý do vào nội trú' },
       { key: 'lydobnvaonoitru_code', label: 'Mã lý do vào nội trú' },
       { key: 'huongdieutri_out', label: 'Hướng điều trị ra viện' },
-      { key: 'isbn_ut', label: 'Số BHYT' },
     ],
   },
   {
@@ -63,21 +66,21 @@ const SECTIONS: SectionDef[] = [
     icon: 'diagnosis',
     fields: [
       { key: 'lydodenkham', label: 'Lý do đến khám', type: 'long' },
-      { key: 'chandoantuyenduoi', label: 'CĐ tuyến dưới', type: 'long' },
+      { key: 'chandoantuyenduoi', label: 'Chẩn đoán tuyến dưới', type: 'long' },
       { key: 'chandoantuyenduoi_icd10', label: 'ICD-10 tuyến dưới' },
-      { key: 'chandoantuyenduoi_kemtheo', label: 'CĐ tuyến dưới kèm theo', type: 'long' },
+      { key: 'chandoantuyenduoi_kemtheo', label: 'Chẩn đoán tuyến dưới kèm theo', type: 'long' },
       { key: 'chandoantuyenduoi_kemtheo_icd10', label: 'ICD-10 tuyến dưới kèm theo' },
-      { key: 'chandoan_in', label: 'CĐ vào viện', type: 'long' },
+      { key: 'chandoan_in', label: 'Chẩn đoán vào viện', type: 'long' },
       { key: 'chandoan_in_icd10', label: 'ICD-10 vào viện' },
-      { key: 'chandoan_in_kemtheo', label: 'CĐ vào viện kèm theo', type: 'long' },
+      { key: 'chandoan_in_kemtheo', label: 'Chẩn đoán vào viện kèm theo', type: 'long' },
       { key: 'chandoan_in_icd10_kemtheo', label: 'ICD-10 vào viện kèm theo' },
-      { key: 'chandoan_kb_main', label: 'CĐ khám bệnh chính', type: 'long' },
+      { key: 'chandoan_kb_main', label: 'Chẩn đoán khám bệnh chính', type: 'long' },
       { key: 'chandoan_kb_main_icd10', label: 'ICD-10 khám bệnh chính' },
-      { key: 'chandoan_kb_ex', label: 'CĐ khám bệnh phụ', type: 'long' },
+      { key: 'chandoan_kb_ex', label: 'Chẩn đoán khám bệnh phụ', type: 'long' },
       { key: 'chandoan_kb_ex_icd10', label: 'ICD-10 khám bệnh phụ' },
-      { key: 'chandoan_out_main', label: 'CĐ ra viện chính', type: 'long' },
+      { key: 'chandoan_out_main', label: 'Chẩn đoán ra viện chính', type: 'long' },
       { key: 'chandoan_out_main_icd10', label: 'ICD-10 ra viện chính' },
-      { key: 'chandoan_out_ex', label: 'CĐ ra viện phụ', type: 'long' },
+      { key: 'chandoan_out_ex', label: 'Chẩn đoán ra viện phụ', type: 'long' },
       { key: 'chandoan_out_ex_icd10', label: 'ICD-10 ra viện phụ' },
     ],
   },
@@ -110,9 +113,9 @@ const SECTIONS: SectionDef[] = [
     fields: [
       { key: 'sub_patientrecorddate_begin', label: 'Ngày bắt đầu (phụ)' },
       { key: 'sub_patientrecorddate_end', label: 'Ngày kết thúc (phụ)' },
-      { key: 'sub_chandoan_out_main', label: 'CĐ ra viện chính (phụ)', type: 'long' },
+      { key: 'sub_chandoan_out_main', label: 'Chẩn đoán ra viện chính (phụ)', type: 'long' },
       { key: 'sub_chandoan_out_main_icd10', label: 'ICD-10 ra viện chính (phụ)' },
-      { key: 'sub_chandoan_out_ex', label: 'CĐ ra viện phụ (phụ)', type: 'long' },
+      { key: 'sub_chandoan_out_ex', label: 'Chẩn đoán ra viện phụ (phụ)', type: 'long' },
       { key: 'sub_chandoan_out_ex_icd10', label: 'ICD-10 ra viện phụ (phụ)' },
       { key: 'sub_dm_ketquadieutriid', label: 'Kết quả điều trị (phụ)' },
       { key: 'sub_dm_patientrecordstatusid', label: 'Trạng thái hồ sơ (phụ)' },
@@ -188,7 +191,6 @@ function parsePyDictList(raw: string): Record<string, string>[] | null {
   const trimmed = raw.trim()
 
   if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
-    // Fast path: simple single-quote swap (works unless values contain apostrophes)
     try {
       const json = trimmed
         .replace(/'/g, '"')
@@ -200,7 +202,6 @@ function parsePyDictList(raw: string): Record<string, string>[] | null {
       if (parsed && typeof parsed === 'object') return [parsed as Record<string, string>]
     } catch { /* fall through */ }
 
-    // Robust path: handles mixed quotes and apostrophes (e.g. "Acetate Ringer's")
     try {
       const parsed = evalPythonLiteral(trimmed)
       if (Array.isArray(parsed)) return parsed as Record<string, string>[]
@@ -208,7 +209,6 @@ function parsePyDictList(raw: string): Record<string, string>[] | null {
     } catch { /* fall through */ }
   }
 
-  // Newline-separated dicts
   const lines = trimmed.split('\n').map((l) => l.trim()).filter((l) => l.startsWith('{'))
   if (lines.length > 0) {
     const objs: Record<string, string>[] = []
@@ -232,10 +232,8 @@ function parseDictListToTable(
   const lower = raw.trim().toLowerCase()
   if (lower === 'null' || lower === 'none' || lower === 'nan') return null
 
-  // Strip "[N mục]" count prefix (e.g. "[543 mục]  {'ten': ...}")
   const stripped = raw.trim().replace(/^\[\d+\s+mục\]\s*/i, '')
 
-  // Try Python-style dict/list (most common format from DB)
   const pyObjs = parsePyDictList(stripped)
   if (pyObjs && pyObjs.length > 0) {
     const keys = Object.keys(pyObjs[0])
@@ -250,7 +248,6 @@ function parseDictListToTable(
     return { headers, rows }
   }
 
-  // Try JSON array of objects
   try {
     const parsed = JSON.parse(stripped)
     if (Array.isArray(parsed) && parsed.length > 0 && typeof parsed[0] === 'object') {
@@ -266,7 +263,6 @@ function parseDictListToTable(
   const lines = stripped.split('\n').filter((l) => l.trim())
   if (lines.length < 2) return null
 
-  // Detect delimiter: pipe, semicolon, or tab
   const firstLine = lines[0]
   let delimiter: string | null = null
   if (firstLine.includes('|')) delimiter = '|'
@@ -379,13 +375,13 @@ function FieldValue({ field, value }: { field: FieldDef; value: string }) {
 
   if (field.type === 'gender') {
     const display = value === '1' ? 'Nam' : value === '2' ? 'Nữ' : value
-    return <span className="text-sm text-on-surface">{display || <Empty />}</span>
+    return <span className="text-[13px] text-on-surface">{display || <Empty />}</span>
   }
 
   if (field.type === 'bool') {
     const display = isEmpty ? 'Không' : value === '0' ? 'Không' : 'Có'
     return (
-      <span className={`text-sm font-medium ${display === 'Có' ? 'text-primary' : 'text-on-surface-variant'}`}>
+      <span className={`text-[13px] font-medium ${display === 'Có' ? 'text-primary' : 'text-on-surface-variant'}`}>
         {display}
       </span>
     )
@@ -394,7 +390,7 @@ function FieldValue({ field, value }: { field: FieldDef; value: string }) {
   if (field.type === 'long') {
     if (isEmpty) return <Empty />
     return (
-      <p className="text-sm text-on-surface leading-relaxed whitespace-pre-wrap col-span-2">{value}</p>
+      <p className="text-[13px] text-on-surface leading-relaxed whitespace-pre-wrap col-span-2">{value}</p>
     )
   }
 
@@ -428,37 +424,156 @@ function FieldValue({ field, value }: { field: FieldDef; value: string }) {
   }
 
   const display = field.unit ? `${formatNumber(value)} ${field.unit}` : value
-  return <span className="text-sm text-on-surface">{isEmpty ? <Empty /> : display}</span>
+  return <span className="text-[13px] text-on-surface">{isEmpty ? <Empty /> : display}</span>
 }
 
 function Empty() {
   return <span className="text-xs text-on-surface-variant/40 italic">—</span>
 }
 
+function VitalsGrid({ section, data }: { section: SectionDef; data: Record<string, string> }) {
+  const bpHigh = data['huyetap_high']
+  const bpLow = data['huyetap_low']
+  const bpValue = bpHigh && bpLow ? `${formatNumber(bpHigh)}/${formatNumber(bpLow)}` : bpHigh || bpLow || ''
+
+  const vitals = [
+    { l: 'Chiều cao', v: data['chieucao'] ? formatNumber(data['chieucao']) : '', u: 'cm' },
+    { l: 'Cân nặng', v: data['cannang'] ? formatNumber(data['cannang']) : '', u: 'kg' },
+    { l: 'Nhịp tim', v: data['nhiptim'] ? formatNumber(data['nhiptim']) : '', u: 'lần/phút' },
+    { l: 'Nhiệt độ', v: data['nhietdo'] ? formatNumber(data['nhietdo']) : '', u: '°C' },
+    { l: 'Huyết áp', v: bpValue, u: 'mmHg' },
+    { l: 'Nhịp thở', v: data['nhiptho'] ? formatNumber(data['nhiptho']) : '', u: 'lần/phút' },
+  ].filter(v => v.v)
+
+  if (vitals.length === 0) return null
+
+  return (
+    <div className="bg-white border border-outline-variant rounded-[14px] overflow-hidden shadow-card">
+      <div className="flex items-center gap-[9px] px-[18px] py-[14px] border-b border-outline-variant">
+        <span className="w-[26px] h-[26px] rounded-[7px] bg-primary-container text-primary flex items-center justify-center flex-none">
+          <span className="material-symbols-outlined text-[14px]">{section.icon}</span>
+        </span>
+        <h4 className="text-[14px] font-bold text-on-surface">{section.title}</h4>
+      </div>
+      <div className="p-[14px] grid grid-cols-3 gap-[10px]">
+        {vitals.map((v) => (
+          <div key={v.l} className="border border-outline-variant rounded-[10px] px-[13px] py-[11px] bg-surface-container-low">
+            <div className="text-[10px] uppercase tracking-[0.05em] text-on-surface-variant font-semibold">{v.l}</div>
+            <div className="flex items-baseline gap-1 mt-[5px]">
+              <span className="text-[19px] font-bold text-on-surface">{v.v}</span>
+              <span className="text-[11px] text-on-surface-variant">{v.u}</span>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function InlineField({ field, value }: { field: FieldDef; value: string }) {
+  return (
+    <div className="flex-1 min-w-0 flex gap-3">
+      <div className="w-[130px] flex-none">
+        <span className="text-[10px] font-semibold text-on-surface-variant uppercase tracking-[0.05em]">
+          {field.label}
+        </span>
+      </div>
+      <div className="flex-1 min-w-0">
+        <FieldValue field={field} value={value} />
+      </div>
+    </div>
+  )
+}
+
 function SectionCard({ section, data }: { section: SectionDef; data: Record<string, string> }) {
   const hasAnyValue = section.fields.some((f) => data[f.key])
   if (!hasAnyValue) return null
 
+  const isLongOrTable = (f: FieldDef) =>
+    f.type === 'long' || f.type === 'list' || f.type === 'xetnghiem_table' ||
+    f.type === 'thuoc_table' || f.type === 'dichvu_table' || f.type === 'cdha_accordion'
+
+  const paired = section.columns === 2
+
+  type RowItem =
+    | { kind: 'pair'; fields: FieldDef[] }
+    | { kind: 'full'; field: FieldDef }
+
+  const rows: RowItem[] = []
+  if (paired) {
+    const shortBuf: FieldDef[] = []
+    const flush = () => {
+      while (shortBuf.length > 0) {
+        rows.push({ kind: 'pair', fields: shortBuf.splice(0, 2) })
+      }
+    }
+    for (const f of section.fields) {
+      if (!data[f.key]) continue
+      if (isLongOrTable(f)) {
+        flush()
+        rows.push({ kind: 'full', field: f })
+      } else {
+        shortBuf.push(f)
+      }
+    }
+    flush()
+  }
+
   return (
-    <div className="bg-white border border-outline-variant rounded-xl overflow-hidden">
-      <div className="px-lg py-md border-b border-outline-variant flex items-center gap-md bg-surface-container-low/50">
-        <span className="material-symbols-outlined text-primary text-[18px]">{section.icon}</span>
-        <h4 className="text-title-sm font-semibold text-on-surface">{section.title}</h4>
+    <div className="bg-white border border-outline-variant rounded-[14px] overflow-hidden shadow-card">
+      <div className="flex items-center gap-[9px] px-[18px] py-[14px] border-b border-outline-variant">
+        <span className="w-[26px] h-[26px] rounded-[7px] bg-primary-container text-primary flex items-center justify-center flex-none">
+          <span className="material-symbols-outlined text-[14px]">{section.icon}</span>
+        </span>
+        <h4 className="text-[14px] font-bold text-on-surface">{section.title}</h4>
       </div>
-      <div className="p-lg">
-        <div className="grid grid-cols-1 gap-md">
-          {section.fields.map((field) => {
+      <div className="px-[18px] pb-3">
+        <div className="flex flex-col">
+          {paired ? rows.map((row, i) => (
+            <div key={i} className="py-[11px] border-b border-[#f3f6fa] last:border-b-0">
+              {row.kind === 'pair' ? (
+                <div className="flex gap-4">
+                  {row.fields.map((f) => (
+                    <InlineField key={f.key} field={f} value={data[f.key] ?? ''} />
+                  ))}
+                  {row.fields.length === 1 && <div className="flex-1" />}
+                </div>
+              ) : (
+                <div className="flex flex-col gap-1 w-full">
+                  <span className="text-[10px] font-semibold text-on-surface-variant uppercase tracking-[0.05em]">
+                    {row.field.label}
+                  </span>
+                  <FieldValue field={row.field} value={data[row.field.key] ?? ''} />
+                </div>
+              )}
+            </div>
+          )) : section.fields.map((field) => {
             const value = data[field.key] ?? ''
-            const isLongOrList = field.type === 'long' || field.type === 'list' || field.type === 'xetnghiem_table' || field.type === 'thuoc_table' || field.type === 'dichvu_table'
+            if (!value) return null
             return (
               <div
                 key={field.key}
-                className={isLongOrList ? 'flex flex-col gap-xs' : 'grid grid-cols-[180px_1fr] gap-md items-start'}
+                className="flex gap-7 py-[11px] border-b border-[#f3f6fa] last:border-b-0"
               >
-                <span className="text-[11px] font-semibold text-on-surface-variant uppercase tracking-wider shrink-0 pt-0.5">
-                  {field.label}
-                </span>
-                <FieldValue field={field} value={value} />
+                {isLongOrTable(field) ? (
+                  <div className="flex flex-col gap-1 w-full">
+                    <span className="text-[10px] font-semibold text-on-surface-variant uppercase tracking-[0.05em]">
+                      {field.label}
+                    </span>
+                    <FieldValue field={field} value={value} />
+                  </div>
+                ) : (
+                  <>
+                    <div className="w-[160px] flex-none">
+                      <span className="text-[10px] font-semibold text-on-surface-variant uppercase tracking-[0.05em]">
+                        {field.label}
+                      </span>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <FieldValue field={field} value={value} />
+                    </div>
+                  </>
+                )}
               </div>
             )
           })}
@@ -470,9 +585,9 @@ function SectionCard({ section, data }: { section: SectionDef; data: Record<stri
 
 function Skeleton() {
   return (
-    <div className="col-span-12 lg:col-span-8 flex flex-col gap-lg animate-pulse">
+    <div className="flex flex-col gap-4 animate-pulse">
       {[...Array(4)].map((_, i) => (
-        <div key={i} className="bg-white border border-outline-variant rounded-xl p-lg">
+        <div key={i} className="bg-white border border-outline-variant rounded-[14px] shadow-card p-lg">
           <div className="h-4 bg-surface-container rounded w-40 mb-md" />
           <div className="space-y-sm">
             {[...Array(4)].map((_, j) => (
@@ -492,12 +607,29 @@ interface Props {
   patientId?: string
 }
 
+function extractStage(diag: string): string | null {
+  const m = diag.match(/giai\s*đoạn\s*(IV|III|II|I|[0-9]+)/i)
+  return m ? `Giai đoạn ${m[1].toUpperCase()}` : null
+}
+
+function formatDateTime(raw: string): string {
+  if (!raw) return ''
+  const d = new Date(raw)
+  if (isNaN(d.getTime())) return raw
+  const day = String(d.getDate()).padStart(2, '0')
+  const month = String(d.getMonth() + 1).padStart(2, '0')
+  const year = d.getFullYear()
+  const hh = String(d.getHours()).padStart(2, '0')
+  const mm = String(d.getMinutes()).padStart(2, '0')
+  return `${day}/${month}/${year} ${hh}:${mm}`
+}
+
 export default function PatientData({ data, loading, error, patientId }: Props) {
   if (loading) return <Skeleton />
 
   if (error) {
     return (
-      <div className="col-span-12 lg:col-span-8 flex items-center justify-center">
+      <div className="flex items-center justify-center py-20">
         <div className="text-center space-y-md">
           <span className="material-symbols-outlined text-error text-[48px]">error</span>
           <p className="text-title-md font-semibold text-on-surface">{error}</p>
@@ -509,40 +641,69 @@ export default function PatientData({ data, loading, error, patientId }: Props) 
 
   if (!data) return null
 
-  const name = data['ho_ten'] || patientId
-  const gender = data['dm_gioitinhid'] === '1' ? 'Nam' : data['dm_gioitinhid'] === '2' ? 'Nữ' : ''
-  const birthYear = data['birthdayyear']
-  const mainDiag = data['chandoan_out_main'] || data['chandoan_in'] || ''
+  const patientIdDisplay = data['ma_bn_an'] || patientId || ''
+  // const birthYear = data['birthdayyear']
+  const mainDiag = data['chandoan_out_main'] || data['chandoan_in'] || data['lydobnvaonoitru'] || ''
+  const stageBadge = mainDiag ? extractStage(mainDiag) : null
+  const dateIn = formatDateTime(data['medicalrecorddate_in'] || '')
+  const dateOut = formatDateTime(data['medicalrecorddate_out'] || '')
+  const treatmentDays = data['so_ngay_dieu_tri'] ? data['so_ngay_dieu_tri'].replace(/\.0$/, '') : ''
 
   return (
-    <section className="col-span-12 lg:col-span-8 flex flex-col gap-lg">
+    <div className="flex flex-col gap-4">
       {/* Patient banner */}
-      <div className="bg-white border border-outline-variant rounded-xl p-lg flex items-start justify-between">
-        <div>
-          <div className="flex items-center gap-md mb-xs">
-            <span className="material-symbols-outlined text-primary">account_circle</span>
-            <h3 className="text-headline-sm font-bold text-on-surface">{name}</h3>
-            {gender && (
-              <span className="text-xs font-semibold px-sm py-0.5 rounded-full bg-primary/10 text-primary">{gender}</span>
+      <div
+        className="bg-white border border-outline-variant rounded-[14px] shadow-card px-[22px] py-[18px] flex justify-between gap-6"
+        style={{ borderLeft: '4px solid #2f6fed' }}
+      >
+        <div className="min-w-0">
+          <div className="flex items-center gap-[10px]">
+            <span className="text-[24px] font-bold text-on-surface">{patientIdDisplay}</span>
+            {stageBadge && (
+              <span className="text-[11px] font-semibold text-[#b5544b] bg-[#fdf0ee] border border-[#f3d9d4] rounded-full px-[10px] py-[3px]">
+                {stageBadge}
+              </span>
             )}
+            {/* {birthYear && (
+              <span className="text-[12px] text-on-surface-variant">Năm sinh {birthYear}</span>
+            )} */}
           </div>
-          <div className="flex items-center gap-lg text-body-sm text-on-surface-variant flex-wrap">
-            <span>Mã: <strong className="text-on-surface">{data['ma_bn_an'] || patientId}</strong></span>
-            {birthYear && <span>Năm sinh: <strong className="text-on-surface">{birthYear}</strong></span>}
-            {mainDiag && <span className="text-error font-medium">{mainDiag}</span>}
-          </div>
+          {mainDiag && (
+            <div className="mt-3 text-[13px] leading-relaxed text-on-surface bg-surface-container rounded-[9px] px-[13px] py-[9px]">
+              {mainDiag}
+            </div>
+          )}
         </div>
-        <div className="text-right text-xs text-on-surface-variant space-y-xs">
-          {data['medicalrecorddate_in'] && <p>Vào viện: <strong>{data['medicalrecorddate_in']}</strong></p>}
-          {data['medicalrecorddate_out'] && <p>Ra viện: <strong>{data['medicalrecorddate_out']}</strong></p>}
-          {data['so_ngay_dieu_tri'] && <p>Số ngày: <strong>{data['so_ngay_dieu_tri'].replace(/\.0$/, '')}</strong></p>}
+        <div className="flex-none text-right flex flex-col gap-[7px] text-[12px]">
+          {dateIn && (
+            <div>
+              <span className="text-on-surface-variant">Vào viện&nbsp;</span>
+              <b className="text-on-surface">{dateIn}</b>
+            </div>
+          )}
+          {dateOut && (
+            <div>
+              <span className="text-on-surface-variant">Ra viện&nbsp;</span>
+              <b className="text-on-surface">{dateOut}</b>
+            </div>
+          )}
+          {treatmentDays && (
+            <div className="self-end mt-[2px]">
+              <span className="text-[11px] font-semibold text-primary bg-primary-container rounded-full px-[11px] py-[4px]">
+                {treatmentDays} ngày điều trị
+              </span>
+            </div>
+          )}
         </div>
       </div>
 
-      {/* All sections */}
-      {SECTIONS.map((section) => (
-        <SectionCard key={section.title} section={section} data={data} />
-      ))}
-    </section>
+      {/* Sections */}
+      {SECTIONS.map((section) => {
+        if (section.title === 'Sinh hiệu & Nhân trắc') {
+          return <VitalsGrid key={section.title} section={section} data={data} />
+        }
+        return <SectionCard key={section.title} section={section} data={data} />
+      })}
+    </div>
   )
 }

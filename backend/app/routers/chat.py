@@ -22,7 +22,7 @@ from fastapi import APIRouter
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
-from app.services.react_agent.graph import graph
+from app.services.agent_package.agents.chatbot_agent import chatbot_agent
 
 log = logging.getLogger(__name__)
 router = APIRouter(prefix="/api", tags=["chat"])
@@ -60,7 +60,7 @@ async def chat(body: ChatRequest) -> StreamingResponse:
 
     async def generate():
         try:
-            async for event in graph.astream_events(input_state, config=config, version="v2"):
+            async for event in chatbot_agent.astream_events(input_state, config=config, version="v2"):
                 if event["event"] == "on_chat_model_stream":
                     raw = event["data"]["chunk"].content
                     if isinstance(raw, list):

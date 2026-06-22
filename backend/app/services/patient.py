@@ -1,4 +1,4 @@
-from .database import db
+from .database import engine
 from sqlalchemy import text
 
 
@@ -11,13 +11,29 @@ def _clean(val) -> str:
     s = str(val).strip()
     return "" if s.lower() in _NULL_VALUES else s
 
+def get_all_patients():
+    with engine.connect() as conn:
+        result = conn.execute(
+            text("""
+                SELECT ma_bn_an, birthdayyear,
+                       departmentid, medicalrecorddate_in, medicalrecorddate_out,
+                       chandoan_out_main, chandoan_in
+                FROM medical_records
+                ORDER BY medicalrecorddate_in DESC
+            """)
+        )
+        rows = result.mappings().all()
+    return [{k: _clean(v) for k, v in row.items()} for row in rows]
+
 def get_patient_info_from_id(patient_id: str):
-    with db._engine.connect() as conn:
+    with engine.connect() as conn:
         result = conn.execute(
             text("SELECT * FROM medical_records WHERE ma_bn_an = :pid"),
             {"pid": patient_id.strip()},
         )
-        rows = result.mappings().all()
-        
-    records = [{k: _clean(v) for k, v in row.items()} for row in rows]
-    return records[0]
+        row = result.mappings().first()
+    
+    if not row: 
+        return None
+    record = {k: _clean(v) for k, v in row.items()}
+    return record

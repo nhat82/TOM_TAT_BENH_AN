@@ -1,13 +1,11 @@
+from sqlalchemy import create_engine
 from langchain_community.utilities import SQLDatabase
-from dotenv import load_dotenv
-import os 
+from app.config import settings
 
-load_dotenv()
+engine = create_engine(settings.db_url.get_secret_value())
 
-pg_uri = os.getenv("PG_URI")
-MAX_OUTPUT_STRING_LENGTH = 999999999
-db = SQLDatabase.from_uri(pg_uri, max_string_length=MAX_OUTPUT_STRING_LENGTH)
-
-
-
-print(f"Database's table names: {db.get_usable_table_names()}")
+db = SQLDatabase.from_uri(
+    settings.db_url.get_secret_value(),
+    max_string_length=settings.max_output_string_length,
+    sample_rows_in_table_info=0,
+)

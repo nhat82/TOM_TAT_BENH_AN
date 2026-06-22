@@ -39,16 +39,16 @@ export default function PatientPage() {
   return (
     <main className="flex flex-col min-h-screen">
       <Header />
-
-      <div className="p-xl grid grid-cols-12 gap-gutter max-w-container-max mx-auto w-full flex-1">
+      <div
+        className="max-w-[1320px] mx-auto w-full px-6 py-6 flex-1"
+        style={{ display: 'grid', gridTemplateColumns: '1fr 400px', gap: '20px', alignItems: 'start' }}
+      >
         <PatientData data={data} loading={loading} error={error} patientId={patientId} />
-
-        <section className="col-span-12 lg:col-span-4">
+        <div className="flex flex-col gap-4" style={{ position: 'sticky', top: '84px' }}>
           <PatientSummaryPanel patientId={patientId} />
           <ClinicalInsightsPanel patientId={patientId} />
-        </section>
+        </div>
       </div>
-
       <Footer />
     </main>
   )

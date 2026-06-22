@@ -11,11 +11,21 @@ import logging
 from fastapi import APIRouter, HTTPException
 from sqlalchemy import text
 
-from app.services.patient import get_patient_info_from_id
+from app.services.patient import get_patient_info_from_id, get_all_patients
 # from app.schemas.patient import PatientRecords
 
 log = logging.getLogger(__name__)
 router = APIRouter(prefix="/api", tags=["patient"])
+
+
+@router.get("/patients")
+async def list_patients():
+    try:
+        patients = get_all_patients()
+    except Exception as e:
+        log.error("DB error fetching patient list: %s", e)
+        raise HTTPException(status_code=500, detail="Lỗi truy vấn cơ sở dữ liệu")
+    return {"patients": patients}
 
 
 @router.get("/patient/{patient_id}")

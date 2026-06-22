@@ -35,7 +35,7 @@ from pydantic import BaseModel, Field
 
 from app.services.docx_export import build_docx, fetch_patient_info
 from app.services.html_preview import build_preview_html
-from app.services.summary_agent.summary_graph import run_refine, run_summary
+from app.services.agent_package.agents.summary_agent import summary_agent
 
 log = logging.getLogger(__name__)
 router = APIRouter(prefix="/api", tags=["summary"])
@@ -65,6 +65,16 @@ class RefineResponse(BaseModel):
 
 # ── endpoints ─────────────────────────────────────────────────────────────────
 
+def _extract_text(content) -> str:
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        return "".join(
+            block.get("text", "") for block in content if isinstance(block, dict)
+        )
+    return str(content)
+
+
 @router.post("/summary", response_model=SummaryResponse)
 async def generate_summary(body: SummaryRequest) -> SummaryResponse:
     pid = body.ma_bn_an.strip()
@@ -73,8 +83,15 @@ async def generate_summary(body: SummaryRequest) -> SummaryResponse:
 
     log.info("Summary request: patient_id=%s", pid)
 
+    input_state = {
+        "patient_id": pid,
+        "messages": [{"role": "user", "content": f"Generate the medical summary for patient {pid}."}],
+    }
+    config = {"configurable": {"thread_id": pid}}
+
     try:
-        summary = await run_summary(pid)
+        result = await summary_agent.ainvoke(input_state, config=config)
+        summary = _extract_text(result["messages"][-1].content)
     except Exception as exc:
         log.exception("Summary generation failed for patient %s", pid)
         raise HTTPException(status_code=500, detail=f"Summary generation failed: {exc}")
@@ -97,8 +114,24 @@ async def refine_patient_summary(body: RefineRequest) -> RefineResponse:
 
     log.info("Refine request: patient_id=%s instruction=%.60s", pid, instruction)
 
+    input_state = {
+        "patient_id": pid,
+        "current_summary": current_summary,
+        "messages": [
+            {
+                "role": "user",
+                "content": (
+                    f"Refine the following summary according to this instruction: {instruction}\n\n"
+                    f"Current summary:\n{current_summary}"
+                ),
+            }
+        ],
+    }
+    config = {"configurable": {"thread_id": f"{pid}-refine"}}
+
     try:
-        refined = await run_refine(current_summary, instruction)
+        result = await summary_agent.ainvoke(input_state, config=config)
+        refined = _extract_text(result["messages"][-1].content)
     except Exception as exc:
         log.exception("Refine failed for patient %s", pid)
         raise HTTPException(status_code=500, detail=f"Refine failed: {exc}")
