@@ -45,8 +45,8 @@ export default function PatientPage() {
       >
         <PatientData data={data} loading={loading} error={error} patientId={patientId} />
         <div className="flex flex-col gap-4" style={{ position: 'sticky', top: '84px' }}>
-          <PatientSummaryPanel patientId={patientId} />
-          <ClinicalInsightsPanel patientId={patientId} />
+          <PatientSummaryPanel key={`summary-${patientId}`} patientId={patientId} />
+          <ClinicalInsightsPanel key={`chat-${patientId}`} patientId={patientId} />
         </div>
       </div>
       <Footer />
