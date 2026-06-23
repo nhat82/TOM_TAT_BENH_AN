@@ -92,7 +92,7 @@ def build_preview_html(patient_id: str, summary: str, patient_info: dict | None 
 <div class="fr ind">{_v(huongdieutri_out)}</div>
 
 <div class="sig">
-  {today}<b>Đại diện đơn vị</b>(Ký, đóng dấu)
+  {today}<br><b>Đại diện đơn vị</b><br>(Ký, đóng dấu)
 </div>
 </body>
 </html>"""
