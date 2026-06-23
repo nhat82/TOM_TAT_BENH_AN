@@ -95,3 +95,53 @@ def test_parse_summary_json_invalid_returns_empty_strings():
     assert result["chandoan_in_icd10"] == ""
     assert result["tom_tat_qua_trinh_dien_bien"] == ""
     assert result["tinh_trang_ra_vien"] == ""
+
+
+def test_build_preview_html_mau_so_03_sections():
+    from app.services.html_preview import build_preview_html
+
+    patient_info = {
+        "ho_ten": "Nguyễn Văn A",
+        "formatted_birthday": "01/01/1972",
+        "age": "54",
+        "gender": "Nam",
+        "ethnicity": "Kinh",
+        "dm_tinhcode": "Hà Nội",
+        "isbn_ut": "BH123",
+        "cccd": "012345678901",
+        "medicalrecorddate_in": "02/03/2026",
+        "medicalrecorddate_out": "05/03/2026",
+        "chandoan_in": "Ung thư đại tràng",
+        "chandoan_in_icd10": "",
+        "chandoan_out_main": "Ung thư đại tràng",
+        "chandoan_out_main_icd10": "",
+        "lydodenkham": "Đau bụng",
+        "departmentid": "Khoa ngoại",
+        "pttt": "",
+        "huongdieutri_out": "Tái khám",
+    }
+    summary_json = json.dumps({
+        "chandoan_in_icd10": "C18.7",
+        "chandoan_out_main_icd10": "C18.7",
+        "tom_tat_qua_trinh_dien_bien": "Bệnh diễn biến phức tạp",
+        "tien_su_benh": "Không có",
+        "dau_hieu_chinh": "Đau bụng dữ dội",
+        "tom_tat_ket_qua": "CEA tăng",
+        "pttt": "",
+        "tinh_trang_ra_vien": "Đỡ",
+        "huongdieutri_out": "Tái khám 2 tuần",
+    })
+
+    html = build_preview_html("BN0001", summary_json, patient_info)
+
+    assert "BẢN TÓM TẮT HỒ SƠ BỆNH ÁN" in html
+    assert "HÀNH CHÍNH" in html
+    assert "CHẨN ĐOÁN" in html
+    assert "QUÁ TRÌNH ĐIỀU TRỊ" in html
+    assert "Nguyễn Văn A" in html
+    assert "Ung thư đại tràng" in html
+    assert "C18.7" in html
+    assert "Bệnh diễn biến phức tạp" in html
+    assert "Đỡ" in html
+    assert "BN0001" in html
+    assert "Đại diện đơn vị" in html
