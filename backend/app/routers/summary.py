@@ -166,17 +166,15 @@ async def preview_html(body: ExportDocxRequest) -> HTMLResponse:
         raise HTTPException(status_code=422, detail="summary must not be empty.")
 
     db_info = fetch_patient_info(pid)
-    patient_info = {
-        "patient_name":   body.patient_name   or db_info.get("patient_name", ""),
-        "birthday":       body.birthday       or db_info.get("birthday", ""),
-        "age":            body.age            or db_info.get("age", ""),
-        "gender":         body.gender         or db_info.get("gender", ""),
-        "ethnicity":      body.ethnicity      or "",
-        "address":        body.address        or db_info.get("address", ""),
-        "id_number":      body.id_number      or db_info.get("id_number", ""),
-        "admission_date": body.admission_date or db_info.get("admission_date", ""),
-        "discharge_date": body.discharge_date or db_info.get("discharge_date", ""),
-    }
+    patient_info = {**db_info}
+    if body.patient_name:   patient_info["ho_ten"] = body.patient_name
+    if body.age:            patient_info["age"] = body.age
+    if body.gender:         patient_info["gender"] = body.gender
+    if body.ethnicity:      patient_info["ethnicity"] = body.ethnicity
+    if body.address:        patient_info["dm_tinhcode"] = body.address
+    if body.id_number:      patient_info["cccd"] = body.id_number
+    if body.admission_date: patient_info["medicalrecorddate_in"] = body.admission_date
+    if body.discharge_date: patient_info["medicalrecorddate_out"] = body.discharge_date
 
     try:
         html = build_preview_html(pid, summary, patient_info)
@@ -199,17 +197,15 @@ async def export_docx(body: ExportDocxRequest) -> Response:
 
     # Fetch DB demographics for any field the caller left as None
     db_info = fetch_patient_info(pid)
-    patient_info = {
-        "patient_name":   body.patient_name   or db_info.get("patient_name", ""),
-        "birthday":       body.birthday       or db_info.get("birthday", ""),
-        "age":            body.age            or db_info.get("age", ""),
-        "gender":         body.gender         or db_info.get("gender", ""),
-        "ethnicity":      body.ethnicity      or "",
-        "address":        body.address        or db_info.get("address", ""),
-        "id_number":      body.id_number      or db_info.get("id_number", ""),
-        "admission_date": body.admission_date or db_info.get("admission_date", ""),
-        "discharge_date": body.discharge_date or db_info.get("discharge_date", ""),
-    }
+    patient_info = {**db_info}
+    if body.patient_name:   patient_info["ho_ten"] = body.patient_name
+    if body.age:            patient_info["age"] = body.age
+    if body.gender:         patient_info["gender"] = body.gender
+    if body.ethnicity:      patient_info["ethnicity"] = body.ethnicity
+    if body.address:        patient_info["dm_tinhcode"] = body.address
+    if body.id_number:      patient_info["cccd"] = body.id_number
+    if body.admission_date: patient_info["medicalrecorddate_in"] = body.admission_date
+    if body.discharge_date: patient_info["medicalrecorddate_out"] = body.discharge_date
 
     try:
         docx_bytes = build_docx(pid, summary, patient_info)
