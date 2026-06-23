@@ -1,4 +1,27 @@
 import { useState } from 'react'
+import { createPortal } from 'react-dom'
+
+const SUMMARY_FIELDS: { key: string; label: string }[] = [
+  { key: 'tom_tat_qua_trinh_dien_bien', label: 'Quá trình bệnh lý và diễn biến lâm sàng' },
+  { key: 'tien_su_benh',                label: 'Tiền sử bệnh' },
+  { key: 'dau_hieu_chinh',              label: 'Dấu hiệu lâm sàng chính' },
+  { key: 'tom_tat_ket_qua',             label: 'Kết quả xét nghiệm / cận lâm sàng' },
+  { key: 'pttt',                        label: 'Phẫu thuật / thủ thuật' },
+  { key: 'tinh_trang_ra_vien',          label: 'Tình trạng ra viện' },
+  { key: 'huongdieutri_out',            label: 'Hướng điều trị tiếp theo' },
+  { key: 'chandoan_in_icd10',           label: 'Mã ICD-10 vào viện' },
+  { key: 'chandoan_out_main_icd10',     label: 'Mã ICD-10 ra viện' },
+]
+
+function parseSummaryJson(s: string): Record<string, string> | null {
+  try {
+    const parsed = JSON.parse(s)
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+      return parsed as Record<string, string>
+    }
+  } catch {}
+  return null
+}
 
 interface SummaryVersion {
   text: string
@@ -241,13 +264,38 @@ export default function PatientSummaryPanel({ patientId }: { patientId?: string 
             </div>
           )}
 
-          {/* Summary textarea */}
-          <textarea
-            value={summary}
-            onChange={(e) => editSummary(e.target.value)}
-            placeholder="Tóm tắt được tạo sẽ hiển thị ở đây…"
-            className="w-full h-[184px] p-3 border border-outline-variant rounded-[10px] text-[13px] leading-[1.55] text-on-surface resize-none outline-none font-[inherit] bg-surface-container-low focus:border-primary transition-colors"
-          />
+          {/* Summary display */}
+          {(() => {
+            const parsed = summary ? parseSummaryJson(summary) : null
+            if (parsed) {
+              return (
+                <div className="w-full border border-outline-variant rounded-[10px] bg-surface-container-low p-3 flex flex-col gap-[10px] min-h-[184px] overflow-y-auto max-h-[400px]">
+                  {SUMMARY_FIELDS.map(({ key, label }) => {
+                    const val = parsed[key]
+                    if (!val) return null
+                    return (
+                      <div key={key}>
+                        <div className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wide mb-[2px]">
+                          {label}
+                        </div>
+                        <div className="text-[12px] leading-[1.55] text-on-surface whitespace-pre-wrap">
+                          {val}
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )
+            }
+            return (
+              <textarea
+                value={summary}
+                onChange={(e) => editSummary(e.target.value)}
+                placeholder="Tóm tắt được tạo sẽ hiển thị ở đây…"
+                className="w-full h-[184px] p-3 border border-outline-variant rounded-[10px] text-[13px] leading-[1.55] text-on-surface resize-none outline-none font-[inherit] bg-surface-container-low focus:border-primary transition-colors"
+              />
+            )
+          })()}
 
           {/* Refine */}
           {hasSummary && (
@@ -361,7 +409,7 @@ export default function PatientSummaryPanel({ patientId }: { patientId?: string 
         </div>}
       </div>
 
-      {previewHtml && (
+      {previewHtml && createPortal(
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
           onClick={() => setPreviewHtml(null)}
@@ -393,7 +441,8 @@ export default function PatientSummaryPanel({ patientId }: { patientId?: string 
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </>
   )
