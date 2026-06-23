@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { createPortal } from 'react-dom'
 
 const SUMMARY_FIELDS: { key: string; label: string }[] = [
   { key: 'tom_tat_qua_trinh_dien_bien', label: 'Quá trình bệnh lý và diễn biến lâm sàng' },
@@ -408,7 +409,7 @@ export default function PatientSummaryPanel({ patientId }: { patientId?: string 
         </div>}
       </div>
 
-      {previewHtml && (
+      {previewHtml && createPortal(
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
           onClick={() => setPreviewHtml(null)}
@@ -440,7 +441,8 @@ export default function PatientSummaryPanel({ patientId }: { patientId?: string 
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </>
   )

@@ -26,6 +26,9 @@ _NULL_VALUES = {"nan", "none", "", "0", "0.0", "0001-01-01 00:00:00"}
 _NARRATIVE_KEYS = [
     "chandoan_in_icd10",
     "chandoan_out_main_icd10",
+    "chandoan_in",
+    "chandoan_out_main",
+    "lydodenkham",
     "tom_tat_qua_trinh_dien_bien",
     "tien_su_benh",
     "dau_hieu_chinh",
@@ -71,13 +74,7 @@ def fetch_patient_info(pid: str) -> dict:
     try:
         with db._engine.connect() as conn:
             result = conn.execute(
-                text(
-                    "SELECT ho_ten, birthdayyear, birthday, dm_gioitinhid, dm_dantoc, "
-                    "dm_tinhcode, isbn_ut, cccd, medicalrecorddate_in, medicalrecorddate_out, "
-                    "chandoan_in, chandoan_in_icd10, chandoan_out_main, chandoan_out_main_icd10, "
-                    "lydodenkham, departmentid, pttt, huongdieutri_out "
-                    "FROM medical_records WHERE ma_bn_an = :pid LIMIT 1"
-                ),
+                text("SELECT * FROM medical_records WHERE ma_bn_an = :pid LIMIT 1"),
                 {"pid": pid},
             )
             row = result.mappings().first()
@@ -123,12 +120,12 @@ def fetch_patient_info(pid: str) -> dict:
         "pttt":                    _clean(row.get("pttt", ""))                    or "",
         "huongdieutri_out":        _clean(row.get("huongdieutri_out", ""))        or "",
         # Legacy keys used by existing callers
-        "patient_name":            _clean(row.get("ho_ten", ""))                  or "N/A",
-        "birthday":                birth_year                                      or "N/A",
-        "id_number":               _clean(row.get("cccd", ""))                    or "N/A",
-        "province":                _clean(row.get("dm_tinhcode", ""))             or "N/A",
-        "admission_date":          _fmt_date(row.get("medicalrecorddate_in"))     or "N/A",
-        "discharge_date":          _fmt_date(row.get("medicalrecorddate_out"))    or "N/A",
+        "patient_name":            _clean(row.get("ho_ten", ""))                  or "",
+        "birthday":                birth_year                                      or "",
+        "id_number":               _clean(row.get("cccd", ""))                    or "",
+        "province":                _clean(row.get("dm_tinhcode", ""))             or "",
+        "admission_date":          _fmt_date(row.get("medicalrecorddate_in"))     or "",
+        "discharge_date":          _fmt_date(row.get("medicalrecorddate_out"))    or "",
     }
 
 
@@ -160,11 +157,11 @@ def build_docx(patient_id: str, summary: str, patient_info: dict | None = None) 
         "cccd":                        db_info.get("cccd", ""),
         "medicalrecorddate_in":        db_info.get("medicalrecorddate_in", ""),
         "medicalrecorddate_out":       db_info.get("medicalrecorddate_out", ""),
-        "chandoan_in":                 db_info.get("chandoan_in", ""),
-        "chandoan_in_icd10":           llm.get("chandoan_in_icd10") or db_info.get("chandoan_in_icd10", ""),
-        "chandoan_out_main":           db_info.get("chandoan_out_main", ""),
+        "chandoan_in":                 llm.get("chandoan_in") or db_info.get("chandoan_in", ""),
+        "chandoan_in_icd10":           db_info.get("chandoan_in_icd10", ""),
+        "chandoan_out_main":           llm.get("chandoan_out_main") or db_info.get("chandoan_out_main", ""),
         "chandoan_out_main_icd10":     llm.get("chandoan_out_main_icd10") or db_info.get("chandoan_out_main_icd10", ""),
-        "lydodenkham":                 db_info.get("lydodenkham", ""),
+        "lydodenkham":                 llm.get("lydodenkham") or db_info.get("lydodenkham", ""),
         "tom_tat_qua_trinh_dien_bien": llm.get("tom_tat_qua_trinh_dien_bien", ""),
         "tien_su_benh":                llm.get("tien_su_benh", ""),
         "dau_hieu_chinh":              llm.get("dau_hieu_chinh", ""),

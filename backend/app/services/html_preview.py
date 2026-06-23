@@ -20,8 +20,11 @@ def build_preview_html(patient_id: str, summary: str, patient_info: dict | None 
     info = patient_info or {}
     llm = _parse_summary_json(summary)
 
-    chandoan_in_icd10  = llm.get("chandoan_in_icd10")      or info.get("chandoan_in_icd10", "")
+    chandoan_in_icd10  = info.get("chandoan_in_icd10", "")
     chandoan_out_icd10 = llm.get("chandoan_out_main_icd10") or info.get("chandoan_out_main_icd10", "")
+    chandoan_in        = llm.get("chandoan_in")             or info.get("chandoan_in", "")
+    chandoan_out_main  = llm.get("chandoan_out_main")       or info.get("chandoan_out_main", "")
+    lydodenkham        = llm.get("lydodenkham")             or info.get("lydodenkham", "")
     pttt               = llm.get("pttt")                    or info.get("pttt", "")
     huongdieutri_out   = info.get("huongdieutri_out", "")   or llm.get("huongdieutri_out", "")
 
@@ -67,11 +70,11 @@ def build_preview_html(patient_id: str, summary: str, patient_info: dict | None 
 <div class="fr">Vào viện ngày {_v(info.get("medicalrecorddate_in",""))} &nbsp; Ra viện ngày {_v(info.get("medicalrecorddate_out",""))}</div>
 
 <div class="sh">II. CHẨN ĐOÁN <span style="font-weight:normal;font-size:12px">(Tên bệnh và mã ICD đính kèm):</span></div>
-<div class="fr">Chẩn đoán vào viện: {_v(info.get("chandoan_in",""))} - {_v(chandoan_in_icd10)}</div>
-<div class="fr">Chẩn đoán ra viện: {_v(info.get("chandoan_out_main",""))} – {_v(chandoan_out_icd10)}</div>
+<div class="fr">Chẩn đoán vào viện: {_v(chandoan_in)} - {_v(chandoan_in_icd10)}</div>
+<div class="fr">Chẩn đoán ra viện: {_v(chandoan_out_main)} – {_v(chandoan_out_icd10)}</div>
 
 <div class="sh">III. TÓM TẮT QUÁ TRÌNH ĐIỀU TRỊ</div>
-<div class="fr">Lý do vào viện: {_v(info.get("lydodenkham",""))}</div>
+<div class="fr">Lý do vào viện: {_v(lydodenkham)}</div>
 <div class="fr" style="margin-top:8px">Tóm tắt quá trình bệnh lý và diễn biến lâm sàng (Đặc điểm khởi phát, các triệu chứng lâm sàng, diễn biến bệnh...):</div>
 <div class="fr ind">{_v(llm.get("tom_tat_qua_trinh_dien_bien",""))}</div>
 <div class="fr" style="margin-top:8px">Tiền sử bệnh:</div>
