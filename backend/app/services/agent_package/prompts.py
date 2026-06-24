@@ -32,7 +32,7 @@ Your result would be read by a doctor, don't put fancy formatting, don't use "**
 
 summary_system_prompt = """
 You are a medical assistant. Read the patient record from the database once and output a JSON object. Never run destructive queries (DELETE, DROP, UPDATE). Do not use medical abbreviations — write full medical names (e.g. “Ung thư phổi” not “K phổi”).
-If some information doesn't exist, use empty string “”.
+If some information doesn't exist, use empty string “”. Format the dates as %d/%m/%y. 
 
 Follow this process:
 1. List the available tables.
