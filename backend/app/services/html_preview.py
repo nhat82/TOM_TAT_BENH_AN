@@ -71,28 +71,22 @@ def build_preview_html(patient_id: str, summary: str, patient_info: dict | None 
 
 <div class="sh">II. CHẨN ĐOÁN <span style="font-weight:normal;font-size:12px">(Tên bệnh và mã ICD đính kèm):</span></div>
 <div class="fr">Chẩn đoán vào viện: {_v(chandoan_in)} - {_v(chandoan_in_icd10)}</div>
-<div class="fr">Chẩn đoán ra viện: {_v(chandoan_out_main)} – {_v(chandoan_out_icd10)}</div>
+<div class="fr">Chẩn đoán ra viện: {_v(chandoan_out_main)} - {_v(chandoan_out_icd10)}</div>
 
 <div class="sh">III. TÓM TẮT QUÁ TRÌNH ĐIỀU TRỊ</div>
-<div class="fr">Lý do vào viện: {_v(lydodenkham)}</div>
-<div class="fr" style="margin-top:8px">Tóm tắt quá trình bệnh lý và diễn biến lâm sàng (Đặc điểm khởi phát, các triệu chứng lâm sàng, diễn biến bệnh...):</div>
-<div class="fr ind">{_v(llm.get("tom_tat_qua_trinh_dien_bien",""))}</div>
-<div class="fr" style="margin-top:8px">Tiền sử bệnh:</div>
-<div class="fr ind">{_v(llm.get("tien_su_benh",""))}</div>
-<div class="fr" style="margin-top:8px">Những dấu hiệu lâm sàng chính được ghi nhận (có giá trị chẩn đoán trong quá trình điều trị):</div>
-<div class="fr ind">{_v(llm.get("dau_hieu_chinh",""))}</div>
-<div class="fr" style="margin-top:8px">Tóm tắt kết quả xét nghiệm, cận lâm sàng có giá trị chẩn đoán:</div>
-<div class="fr ind">{_v(llm.get("tom_tat_ket_qua",""))}</div>
-<div class="fr" style="margin-top:8px">Phương pháp điều trị (tương ứng với chẩn đoán):</div>
-<div class="fr">Nội khoa: □ Không &nbsp; □ Có, ghi rõ: {_v(info.get("departmentid",""))}</div>
-<div class="fr">Phẫu thuật, thủ thuật: □ Không &nbsp; □ Có, ghi rõ phương pháp:</div>
-<div class="fr ind">{_v(pttt)}</div>
-<div class="fr" style="margin-top:8px">Tình trạng ra viện:</div>
+<div class="fr"><u>Lý do vào viện:</u> {_v(lydodenkham)}</div>
+<div class="fr" style="margin-top:8px"><u>Tóm tắt quá trình bệnh lý và diễn biến lâm sàng (Đặc điểm khởi phát, các triệu chứng lâm sàng, diễn biến bệnh...):</u> {_v(llm.get("tom_tat_qua_trinh_dien_bien",""))}</div>
+<div class="fr" style="margin-top:8px"><u>Tiền sử bệnh:</u> {_v(llm.get("tien_su_benh",""))}</div>
+<div class="fr" style="margin-top:8px"><u>Những dấu hiệu lâm sàng chính được ghi nhận (có giá trị chẩn đoán trong quá trình điều trị):</u> {_v(llm.get("dau_hieu_chinh",""))}</div>
+<div class="fr" style="margin-top:8px"><u>Tóm tắt kết quả xét nghiệm, cận lâm sàng có giá trị chẩn đoán:</u> {_v(llm.get("tom_tat_ket_qua",""))}</div>
+<div class="fr" style="margin-top:8px"><u>Phương pháp điều trị (tương ứng với chẩn đoán):</u></div>
+<div class="fr"><u>Nội khoa:</u> □ Không &nbsp; □ Có, ghi rõ: {_v(info.get("departmentid",""))}</div>
+<div class="fr"><u>Phẫu thuật, thủ thuật:</u> □ Không &nbsp; □ Có, ghi rõ phương pháp: {_v(pttt)}</div>
+<div class="fr" style="margin-top:8px"><u>Tình trạng ra viện:</u></div>
 <div class="fr">□ Khỏi &nbsp; □ Đỡ &nbsp; □ Không thay đổi &nbsp; □ Nặng hơn &nbsp; □ Tử vong &nbsp; □ Tiên lượng nặng xin về</div>
 <div class="fr">□ Chưa xác định</div>
 <div class="fr ind" style="font-style:italic">{_v(llm.get("tinh_trang_ra_vien",""))}</div>
-<div class="fr" style="margin-top:8px">Hướng điều trị và các chế độ tiếp theo:</div>
-<div class="fr ind">{_v(huongdieutri_out)}</div>
+<div class="fr" style="margin-top:8px"><u>Hướng điều trị và các chế độ tiếp theo:</u> {_v(huongdieutri_out)}</div>
 
 <div class="sig">
   {today}<br><b>Đại diện đơn vị</b><br>(Ký, đóng dấu)

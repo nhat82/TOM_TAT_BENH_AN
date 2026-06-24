@@ -137,10 +137,10 @@ export default function ClinicalInsightsPanel({ patientId }: { patientId?: strin
   }
 
   return (
-    <div className="bg-white border border-outline-variant rounded-[14px] overflow-hidden shadow-card flex flex-col">
+    <div className="bg-white border border-outline-variant rounded-[8px] overflow-hidden shadow-card flex flex-col">
       <div className="flex items-center justify-between px-[18px] py-[14px] border-b border-outline-variant">
         <div className="flex items-center gap-[9px]">
-          <span className="w-[26px] h-[26px] rounded-[7px] bg-primary-container text-primary flex items-center justify-center flex-none">
+          <span className="w-[26px] h-[26px] rounded-[4px] bg-primary-container text-primary flex items-center justify-center flex-none">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round">
               <path d="M21 15a2 2 0 0 1-2 2H8l-4 4V5a2 2 0 0 1 2-2h13a2 2 0 0 1 2 2z"/>
             </svg>
@@ -200,7 +200,7 @@ export default function ClinicalInsightsPanel({ patientId }: { patientId?: strin
                     <div className="flex items-center gap-[6px]">
                       <button
                         onClick={() => setMsgFb(msg.id, 'up')}
-                        className="w-[24px] h-[24px] inline-flex items-center justify-center rounded-[7px] border transition-colors"
+                        className="w-[24px] h-[24px] inline-flex items-center justify-center rounded-[4px] border transition-colors"
                         style={{
                           border: `1px solid ${msg.fb.val === 'up' ? '#cfe0fc' : '#e4eaf2'}`,
                           background: msg.fb.val === 'up' ? '#eef4fe' : '#fff',
@@ -213,7 +213,7 @@ export default function ClinicalInsightsPanel({ patientId }: { patientId?: strin
                       </button>
                       <button
                         onClick={() => setMsgFb(msg.id, 'down')}
-                        className="w-[24px] h-[24px] inline-flex items-center justify-center rounded-[7px] border transition-colors"
+                        className="w-[24px] h-[24px] inline-flex items-center justify-center rounded-[4px] border transition-colors"
                         style={{
                           border: `1px solid ${msg.fb.val === 'down' ? '#f0c9c4' : '#e4eaf2'}`,
                           background: msg.fb.val === 'down' ? '#fdf0ee' : '#fff',
@@ -231,12 +231,12 @@ export default function ClinicalInsightsPanel({ patientId }: { patientId?: strin
                   )}
 
                   {isAi && msg.fb.showReason && !msg.fb.sent && (
-                    <div className="bg-[#fdf3f1] border border-[#f3d9d4] rounded-[9px] p-2 animate-[fadeUp_.2s_ease]">
+                    <div className="bg-[#fdf3f1] border border-[#f3d9d4] rounded-[5px] p-2 animate-[fadeUp_.2s_ease]">
                       <textarea
                         value={msg.fb.reason}
                         onChange={(e) => setMsgReason(msg.id, e.target.value)}
                         placeholder="Câu trả lời chưa đúng ở đâu? (không bắt buộc)"
-                        className="w-full h-[42px] text-[12px] border border-[#f0d3cd] rounded-lg p-[6px] resize-none outline-none font-[inherit] bg-white text-on-surface"
+                        className="w-full h-[42px] text-[12px] border border-[#f0d3cd] rounded-md p-[6px] resize-none outline-none font-[inherit] bg-white text-on-surface"
                       />
                       <button
                         onClick={() => sendMsgReason(msg.id)}
@@ -260,12 +260,12 @@ export default function ClinicalInsightsPanel({ patientId }: { patientId?: strin
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && !e.nativeEvent.isComposing && handleSend()}
           placeholder="Hỏi về bệnh nhân…"
-          className="flex-1 px-3 py-[10px] border border-outline-variant rounded-[9px] text-[13px] outline-none font-[inherit] text-on-surface bg-white focus:border-primary transition-colors"
+          className="flex-1 px-3 py-[10px] border border-outline-variant rounded-[5px] text-[13px] outline-none font-[inherit] text-on-surface bg-white focus:border-primary transition-colors"
         />
         <button
           onClick={handleSend}
           disabled={isLoading}
-          className="w-[40px] flex-none flex items-center justify-center bg-primary text-white rounded-[9px] border-none cursor-pointer disabled:opacity-50"
+          className="w-[40px] flex-none flex items-center justify-center bg-primary text-white rounded-[5px] border-none cursor-pointer disabled:opacity-50"
         >
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <path d="M22 2 11 13"/>

@@ -1,10 +1,11 @@
-type FieldType = 'text' | 'long' | 'list' | 'gender' | 'bool' | 'xetnghiem_table' | 'cdha_accordion' | 'thuoc_table' | 'dichvu_table'
+type FieldType = 'text' | 'long' | 'list' | 'gender' | 'bool' | 'datetime' | 'xetnghiem_table' | 'cdha_accordion' | 'thuoc_table' | 'dichvu_table'
 
 interface FieldDef {
   key: string
   label: string
   type?: FieldType
   unit?: string
+  alwaysShow?: boolean
 }
 
 interface SectionDef {
@@ -21,9 +22,10 @@ const SECTIONS: SectionDef[] = [
     columns: 2,
     fields: [
       { key: 'ma_bn_an', label: 'Mã bệnh án' },
-      { key: 'ho_ten', label: 'Họ tên' },
+      { key: 'ho_ten', label: 'Họ tên', alwaysShow: true },
+      { key: 'dm_gioitinhid', label: 'Giới tính', type: 'gender', alwaysShow: true },
+      { key: 'isbn_ut', label: 'Số BHYT', alwaysShow: true },
       { key: 'cccd', label: 'CCCD/CMND' },
-      { key: 'dm_gioitinhid', label: 'Giới tính', type: 'gender' },
       { key: 'birthdayyear', label: 'Năm sinh' },
       { key: 'dm_tinhcode', label: 'Mã tỉnh/TP' },
     ],
@@ -35,8 +37,8 @@ const SECTIONS: SectionDef[] = [
     fields: [
       { key: 'dm_medicalrecordtypeid', label: 'Loại hồ sơ' },
       { key: 'dm_hinhthucvaovienid', label: 'Hình thức vào viện' },
-      { key: 'medicalrecorddate_in', label: 'Ngày vào viện' },
-      { key: 'medicalrecorddate_out', label: 'Ngày ra viện' },
+      { key: 'medicalrecorddate_in', label: 'Ngày vào viện', type: 'datetime' },
+      { key: 'medicalrecorddate_out', label: 'Ngày ra viện', type: 'datetime' },
       { key: 'so_ngay_dieu_tri', label: 'Số ngày điều trị' },
       { key: 'departmentid', label: 'Khoa' },
       { key: 'roomid', label: 'Phòng' },
@@ -178,6 +180,8 @@ const DICHVU_HEADER_MAP: Record<string, string> = {
   don_gia: 'Đơn giá',
 }
 
+const DICHVU_DATE_KEYS = new Set(['ngay'])
+
 function evalPythonLiteral(s: string): unknown {
   const js = s
     .replace(/\bNone\b/g, 'null')
@@ -226,7 +230,8 @@ function parsePyDictList(raw: string): Record<string, string>[] | null {
 
 function parseDictListToTable(
   raw: string,
-  headerMap: Record<string, string>
+  headerMap: Record<string, string>,
+  dateKeys?: Set<string>
 ): { headers: string[]; rows: string[][] } | null {
   if (!raw?.trim()) return null
   const lower = raw.trim().toLowerCase()
@@ -242,7 +247,8 @@ function parseDictListToTable(
     const rows = pyObjs.map((obj) =>
       keys.map((k) => {
         const v = String(obj[k] ?? '')
-        return NULL_VALS.has(v.toLowerCase()) ? '' : v
+        if (NULL_VALS.has(v.toLowerCase())) return ''
+        return dateKeys?.has(k) ? formatDateTime(v) : v
       })
     )
     return { headers, rows }
@@ -254,7 +260,10 @@ function parseDictListToTable(
       const keys = Object.keys(parsed[0])
       const headers = keys.map((k) => headerMap[k] ?? k)
       const rows = parsed.map((item: Record<string, unknown>) =>
-        keys.map((k) => String(item[k] ?? ''))
+        keys.map((k) => {
+          const v = String(item[k] ?? '')
+          return dateKeys?.has(k) ? formatDateTime(v) : v
+        })
       )
       return { headers, rows }
     }
@@ -282,15 +291,15 @@ function parseDictListToTable(
   return null
 }
 
-function DataTable({ value, headerMap }: { value: string; headerMap: Record<string, string> }) {
-  const parsed = parseDictListToTable(value, headerMap)
+function DataTable({ value, headerMap, dateKeys }: { value: string; headerMap: Record<string, string>; dateKeys?: Set<string> }) {
+  const parsed = parseDictListToTable(value, headerMap, dateKeys)
 
   if (!parsed) {
     return <Empty />
   }
 
   return (
-    <div className="overflow-x-auto rounded-lg border border-outline-variant">
+    <div className="overflow-x-auto rounded-md border border-outline-variant">
       <table className="w-full text-xs border-collapse">
         <thead>
           <tr className="bg-surface-container-low">
@@ -325,7 +334,7 @@ function formatDMY(raw: string): string {
   if (isNaN(d.getTime())) return raw
   const day = String(d.getDate()).padStart(2, '0')
   const month = String(d.getMonth() + 1).padStart(2, '0')
-  const year = d.getFullYear()
+  const year = String(d.getFullYear()).slice(-2)
   return `${day}/${month}/${year}`
 }
 
@@ -334,7 +343,7 @@ function CdhaAccordion({ value }: { value: string }) {
 
   if (!items) {
     return (
-      <pre className="text-xs text-on-surface font-mono bg-surface-container-low rounded-lg p-md leading-relaxed whitespace-pre-wrap break-all col-span-2">
+      <pre className="text-xs text-on-surface font-mono bg-surface-container-low rounded-md p-md leading-relaxed whitespace-pre-wrap break-all col-span-2">
         {value}
       </pre>
     )
@@ -347,7 +356,7 @@ function CdhaAccordion({ value }: { value: string }) {
         const date = rawDate ? formatDMY(rawDate) : `#${i + 1}`
         const description = item['mo_ta'] || item['Mô tả'] || ''
         return (
-          <details key={i} className="group rounded-lg border border-outline-variant overflow-hidden">
+          <details key={i} className="group rounded-md border border-outline-variant overflow-hidden">
             <summary className="flex items-center justify-between gap-md px-md py-sm cursor-pointer select-none bg-surface-container-low/50 hover:bg-surface-container-low list-none">
               <span className="text-xs font-semibold text-on-surface">{date}</span>
               <span className="material-symbols-outlined text-[16px] text-on-surface-variant transition-transform group-open:rotate-180">
@@ -406,7 +415,7 @@ function FieldValue({ field, value }: { field: FieldDef; value: string }) {
 
   if (field.type === 'dichvu_table') {
     if (isEmpty) return <Empty />
-    return <DataTable value={value} headerMap={DICHVU_HEADER_MAP} />
+    return <DataTable value={value} headerMap={DICHVU_HEADER_MAP} dateKeys={DICHVU_DATE_KEYS} />
   }
 
   if (field.type === 'cdha_accordion') {
@@ -417,10 +426,15 @@ function FieldValue({ field, value }: { field: FieldDef; value: string }) {
   if (field.type === 'list') {
     if (isEmpty) return <Empty />
     return (
-      <pre className="text-xs text-on-surface font-mono bg-surface-container-low rounded-lg p-md leading-relaxed whitespace-pre-wrap break-all col-span-2">
+      <pre className="text-xs text-on-surface font-mono bg-surface-container-low rounded-md p-md leading-relaxed whitespace-pre-wrap break-all col-span-2">
         {value}
       </pre>
     )
+  }
+
+  if (field.type === 'datetime') {
+    const formatted = isEmpty ? '' : formatDateTime(value)
+    return <span className="text-[13px] text-on-surface">{formatted || <Empty />}</span>
   }
 
   const display = field.unit ? `${formatNumber(value)} ${field.unit}` : value
@@ -448,16 +462,16 @@ function VitalsGrid({ section, data }: { section: SectionDef; data: Record<strin
   if (vitals.length === 0) return null
 
   return (
-    <div className="bg-white border border-outline-variant rounded-[14px] overflow-hidden shadow-card">
+    <div className="bg-white border border-outline-variant rounded-[8px] overflow-hidden shadow-card">
       <div className="flex items-center gap-[9px] px-[18px] py-[14px] border-b border-outline-variant">
-        <span className="w-[26px] h-[26px] rounded-[7px] bg-primary-container text-primary flex items-center justify-center flex-none">
+        <span className="w-[26px] h-[26px] rounded-[4px] bg-primary-container text-primary flex items-center justify-center flex-none">
           <span className="material-symbols-outlined text-[14px]">{section.icon}</span>
         </span>
         <h4 className="text-[14px] font-bold text-on-surface">{section.title}</h4>
       </div>
       <div className="p-[14px] grid grid-cols-3 gap-[10px]">
         {vitals.map((v) => (
-          <div key={v.l} className="border border-outline-variant rounded-[10px] px-[13px] py-[11px] bg-surface-container-low">
+          <div key={v.l} className="border border-outline-variant rounded-[6px] px-[13px] py-[11px] bg-surface-container-low">
             <div className="text-[10px] uppercase tracking-[0.05em] text-on-surface-variant font-semibold">{v.l}</div>
             <div className="flex items-baseline gap-1 mt-[5px]">
               <span className="text-[19px] font-bold text-on-surface">{v.v}</span>
@@ -486,7 +500,7 @@ function InlineField({ field, value }: { field: FieldDef; value: string }) {
 }
 
 function SectionCard({ section, data }: { section: SectionDef; data: Record<string, string> }) {
-  const hasAnyValue = section.fields.some((f) => data[f.key])
+  const hasAnyValue = section.fields.some((f) => data[f.key] || f.alwaysShow)
   if (!hasAnyValue) return null
 
   const isLongOrTable = (f: FieldDef) =>
@@ -508,7 +522,7 @@ function SectionCard({ section, data }: { section: SectionDef; data: Record<stri
       }
     }
     for (const f of section.fields) {
-      if (!data[f.key]) continue
+      if (!data[f.key] && !f.alwaysShow) continue
       if (isLongOrTable(f)) {
         flush()
         rows.push({ kind: 'full', field: f })
@@ -520,9 +534,9 @@ function SectionCard({ section, data }: { section: SectionDef; data: Record<stri
   }
 
   return (
-    <div className="bg-white border border-outline-variant rounded-[14px] overflow-hidden shadow-card">
+    <div className="bg-white border border-outline-variant rounded-[8px] overflow-hidden shadow-card">
       <div className="flex items-center gap-[9px] px-[18px] py-[14px] border-b border-outline-variant">
-        <span className="w-[26px] h-[26px] rounded-[7px] bg-primary-container text-primary flex items-center justify-center flex-none">
+        <span className="w-[26px] h-[26px] rounded-[4px] bg-primary-container text-primary flex items-center justify-center flex-none">
           <span className="material-symbols-outlined text-[14px]">{section.icon}</span>
         </span>
         <h4 className="text-[14px] font-bold text-on-surface">{section.title}</h4>
@@ -549,7 +563,7 @@ function SectionCard({ section, data }: { section: SectionDef; data: Record<stri
             </div>
           )) : section.fields.map((field) => {
             const value = data[field.key] ?? ''
-            if (!value) return null
+            if (!value && !field.alwaysShow) return null
             return (
               <div
                 key={field.key}
@@ -587,7 +601,7 @@ function Skeleton() {
   return (
     <div className="flex flex-col gap-4 animate-pulse">
       {[...Array(4)].map((_, i) => (
-        <div key={i} className="bg-white border border-outline-variant rounded-[14px] shadow-card p-lg">
+        <div key={i} className="bg-white border border-outline-variant rounded-[8px] shadow-card p-lg">
           <div className="h-4 bg-surface-container rounded w-40 mb-md" />
           <div className="space-y-sm">
             {[...Array(4)].map((_, j) => (
@@ -618,7 +632,7 @@ function formatDateTime(raw: string): string {
   if (isNaN(d.getTime())) return raw
   const day = String(d.getDate()).padStart(2, '0')
   const month = String(d.getMonth() + 1).padStart(2, '0')
-  const year = d.getFullYear()
+  const year = String(d.getFullYear()).slice(-2)
   const hh = String(d.getHours()).padStart(2, '0')
   const mm = String(d.getMinutes()).padStart(2, '0')
   return `${day}/${month}/${year} ${hh}:${mm}`
@@ -642,7 +656,6 @@ export default function PatientData({ data, loading, error, patientId }: Props) 
   if (!data) return null
 
   const patientIdDisplay = data['ma_bn_an'] || patientId || ''
-  // const birthYear = data['birthdayyear']
   const mainDiag = data['chandoan_out_main'] || data['chandoan_in'] || data['lydobnvaonoitru'] || ''
   const stageBadge = mainDiag ? extractStage(mainDiag) : null
   const dateIn = formatDateTime(data['medicalrecorddate_in'] || '')
@@ -653,7 +666,7 @@ export default function PatientData({ data, loading, error, patientId }: Props) 
     <div className="flex flex-col gap-4">
       {/* Patient banner */}
       <div
-        className="bg-white border border-outline-variant rounded-[14px] shadow-card px-[22px] py-[18px] flex justify-between gap-6"
+        className="bg-white border border-outline-variant rounded-[8px] shadow-card px-[22px] py-[18px] flex justify-between gap-6"
         style={{ borderLeft: '4px solid #2f6fed' }}
       >
         <div className="min-w-0">
@@ -664,12 +677,9 @@ export default function PatientData({ data, loading, error, patientId }: Props) 
                 {stageBadge}
               </span>
             )}
-            {/* {birthYear && (
-              <span className="text-[12px] text-on-surface-variant">Năm sinh {birthYear}</span>
-            )} */}
           </div>
           {mainDiag && (
-            <div className="mt-3 text-[13px] leading-relaxed text-on-surface bg-surface-container rounded-[9px] px-[13px] py-[9px]">
+            <div className="mt-3 text-[13px] leading-relaxed text-on-surface bg-surface-container rounded-[5px] px-[13px] py-[9px]">
               {mainDiag}
             </div>
           )}
@@ -677,13 +687,13 @@ export default function PatientData({ data, loading, error, patientId }: Props) 
         <div className="flex-none text-right flex flex-col gap-[7px] text-[12px]">
           {dateIn && (
             <div>
-              <span className="text-on-surface-variant">Vào viện&nbsp;</span>
+              <span className="text-[#555]">Vào viện&nbsp;</span>
               <b className="text-on-surface">{dateIn}</b>
             </div>
           )}
           {dateOut && (
             <div>
-              <span className="text-on-surface-variant">Ra viện&nbsp;</span>
+              <span className="text-[#555]">Ra viện&nbsp;</span>
               <b className="text-on-surface">{dateOut}</b>
             </div>
           )}

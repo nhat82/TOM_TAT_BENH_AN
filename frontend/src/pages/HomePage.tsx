@@ -157,11 +157,11 @@ export default function HomePage() {
                 value={patientId}
                 onChange={(e) => setPatientId(e.target.value)}
                 placeholder="Mã bệnh nhân (vd. BN0052)"
-                className="flex-1 px-[18px] py-[15px] border border-outline-variant rounded-[13px] bg-white text-[15px] text-on-surface placeholder:text-on-surface-variant outline-none focus:border-primary focus:ring-1 focus:ring-primary/30 transition-colors"
+                className="flex-1 px-[18px] py-[15px] border border-outline-variant rounded-[7px] bg-white text-[15px] text-on-surface placeholder:text-on-surface-variant outline-none focus:border-primary focus:ring-1 focus:ring-primary/30 transition-colors"
               />
               <button
                 type="submit"
-                className="px-[26px] py-[15px] border-none rounded-[13px] bg-primary text-white text-[15px] font-semibold cursor-pointer whitespace-nowrap shadow-[0_6px_16px_rgba(47,111,237,.32)] hover:bg-primary/90 transition-colors disabled:opacity-50"
+                className="px-[26px] py-[15px] border-none rounded-[7px] bg-primary text-white text-[15px] font-semibold cursor-pointer whitespace-nowrap shadow-[0_6px_16px_rgba(47,111,237,.32)] hover:bg-primary/90 transition-colors disabled:opacity-50"
                 disabled={!patientId.trim()}
               >
                 Xem hồ sơ
@@ -170,35 +170,35 @@ export default function HomePage() {
           </div>
 
           {/* Stats card */}
-          <div className="bg-white border border-[#ECEFF6] rounded-[22px] p-[30px] flex flex-col gap-[22px] shadow-[0_10px_30px_rgba(27,36,64,.05)]">
+          <div className="bg-white border border-[#ECEFF6] rounded-[12px] p-[30px] flex flex-col gap-[22px] shadow-[0_10px_30px_rgba(27,36,64,.05)]">
             <div className="text-[13px] font-bold tracking-[0.04em] text-[#6A748D]">TỔNG QUAN HỒ SƠ</div>
             <div className="grid grid-cols-2 gap-[18px]">
-              <div className="bg-[#F7F9FD] rounded-[15px] p-[18px]">
+              <div className="bg-[#F7F9FD] rounded-[8px] p-[18px]">
                 <div className="text-[30px] font-extrabold tracking-[-0.02em]" style={{ color: '#3B63E0' }}>
                   {loading ? '—' : totalCount}
                 </div>
                 <div className="text-[13px] font-medium text-[#8A93A8] mt-1">Tổng hồ sơ</div>
               </div>
-              <div className="bg-[#F7F9FD] rounded-[15px] p-[18px]">
+              <div className="bg-[#F7F9FD] rounded-[8px] p-[18px]">
                 <div className="text-[30px] font-extrabold tracking-[-0.02em]" style={{ color: '#3B63E0' }}>
                   {loading ? '—' : activeCount}
                 </div>
                 <div className="text-[13px] font-medium text-[#8A93A8] mt-1">Đang điều trị</div>
               </div>
-              <div className="bg-[#F7F9FD] rounded-[15px] p-[18px]">
+              <div className="bg-[#F7F9FD] rounded-[8px] p-[18px]">
                 <div className="text-[30px] font-extrabold tracking-[-0.02em]" style={{ color: '#2E8B57' }}>
                   {loading ? '—' : stableCount}
                 </div>
                 <div className="text-[13px] font-medium text-[#8A93A8] mt-1">Đã ra viện</div>
               </div>
-              <div className="bg-[#F7F9FD] rounded-[15px] p-[18px]">
+              <div className="bg-[#F7F9FD] rounded-[8px] p-[18px]">
                 <div className="text-[30px] font-extrabold tracking-[-0.02em]" style={{ color: '#9AA3B8' }}>
                   {loading ? '—' : filtered.length}
                 </div>
                 <div className="text-[13px] font-medium text-[#8A93A8] mt-1">Đang hiển thị</div>
               </div>
             </div>
-            <div className="mt-auto flex items-center gap-[10px] px-4 py-[14px] bg-[#EEF7F0] rounded-[13px]">
+            <div className="mt-auto flex items-center gap-[10px] px-4 py-[14px] bg-[#EEF7F0] rounded-[7px]">
               <span className="w-2 h-2 rounded-full bg-[#2FA56A] flex-none" />
               <span className="text-[13.5px] font-medium text-[#2E7D52]">
                 {loading ? 'Đang tải dữ liệu...' : `AI sẵn sàng tạo tóm tắt cho ${totalCount} hồ sơ`}
@@ -237,7 +237,7 @@ export default function HomePage() {
           </div>
 
           {error && (
-            <div className="mb-6 px-5 py-4 bg-[#FDECEC] border border-[#F5C6C6] rounded-[13px] text-[#D5443E] text-[14px]">
+            <div className="mb-6 px-5 py-4 bg-[#FDECEC] border border-[#F5C6C6] rounded-[7px] text-[#D5443E] text-[14px]">
               Không thể tải danh sách bệnh nhân: {error}
             </div>
           )}
@@ -245,8 +245,8 @@ export default function HomePage() {
           {loading ? (
             <div className="grid grid-cols-2 gap-4">
               {Array.from({ length: 6 }).map((_, i) => (
-                <div key={i} className="border border-[#ECEFF6] bg-white rounded-[18px] p-5 animate-pulse flex gap-4">
-                  <div className="w-[52px] h-[52px] rounded-[15px] bg-[#F0F3FA] flex-none" />
+                <div key={i} className="border border-[#ECEFF6] bg-white rounded-[6px] p-5 animate-pulse flex gap-4">
+                  <div className="w-[52px] h-[52px] rounded-[8px] bg-[#F0F3FA] flex-none" />
                   <div className="flex-1 space-y-2.5">
                     <div className="h-4 bg-[#F0F3FA] rounded w-3/4" />
                     <div className="h-3 bg-[#F0F3FA] rounded w-1/2" />
@@ -263,10 +263,10 @@ export default function HomePage() {
                   <button
                     key={p.code}
                     onClick={() => navigate(`/patient/${p.code}`)}
-                    className="text-left border border-[#ECEFF6] bg-white rounded-[18px] p-5 cursor-pointer font-sans flex gap-4 items-start hover:border-[#C3D0F5] hover:shadow-[0_10px_26px_rgba(27,36,64,.08)] hover:-translate-y-0.5 transition-all duration-150"
+                    className="text-left border border-[#ECEFF6] bg-white rounded-[6px] p-5 cursor-pointer font-sans flex gap-4 items-start hover:border-[#C3D0F5] hover:shadow-[0_10px_26px_rgba(27,36,64,.08)] hover:-translate-y-0.5 transition-all duration-150"
                   >
                     <div
-                      className="flex-none w-[52px] h-[52px] rounded-[15px] flex items-center justify-center text-[17px] font-bold"
+                      className="flex-none w-[52px] h-[52px] rounded-[8px] flex items-center justify-center text-[17px] font-bold"
                       style={{ background: s.avatarBg, color: s.avatarFg }}
                     >
                       {initials(p.name)}
@@ -311,7 +311,7 @@ export default function HomePage() {
                 <button
                   onClick={() => goTo(safePage - 1)}
                   disabled={safePage === 1}
-                  className="w-9 h-9 flex items-center justify-center rounded-[10px] border border-[#E4E8F2] bg-white text-[#5A647C] text-[13px] font-semibold cursor-pointer hover:border-[#C3D0F5] disabled:opacity-40 disabled:cursor-default transition-colors"
+                  className="w-9 h-9 flex items-center justify-center rounded-[6px] border border-[#E4E8F2] bg-white text-[#5A647C] text-[13px] font-semibold cursor-pointer hover:border-[#C3D0F5] disabled:opacity-40 disabled:cursor-default transition-colors"
                 >
                   ‹
                 </button>
@@ -329,7 +329,7 @@ export default function HomePage() {
                       <button
                         key={p}
                         onClick={() => goTo(p)}
-                        className="w-9 h-9 flex items-center justify-center rounded-[10px] border text-[13px] font-semibold cursor-pointer transition-colors"
+                        className="w-9 h-9 flex items-center justify-center rounded-[6px] border text-[13px] font-semibold cursor-pointer transition-colors"
                         style={{
                           background: p === safePage ? '#1B2440' : '#fff',
                           color: p === safePage ? '#fff' : '#5A647C',
@@ -343,7 +343,7 @@ export default function HomePage() {
                 <button
                   onClick={() => goTo(safePage + 1)}
                   disabled={safePage === totalPages}
-                  className="w-9 h-9 flex items-center justify-center rounded-[10px] border border-[#E4E8F2] bg-white text-[#5A647C] text-[13px] font-semibold cursor-pointer hover:border-[#C3D0F5] disabled:opacity-40 disabled:cursor-default transition-colors"
+                  className="w-9 h-9 flex items-center justify-center rounded-[6px] border border-[#E4E8F2] bg-white text-[#5A647C] text-[13px] font-semibold cursor-pointer hover:border-[#C3D0F5] disabled:opacity-40 disabled:cursor-default transition-colors"
                 >
                   ›
                 </button>
