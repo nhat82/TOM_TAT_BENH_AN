@@ -1,7 +1,7 @@
 """
 GET /api/patient/{patient_id}
 -----------------------------
-Queries the medical_records table in PostgreSQL and returns all records for a patient.
+Queries the ai_benh_an_so table in PostgreSQL and returns all records for a patient.
 """
 
 from __future__ import annotations

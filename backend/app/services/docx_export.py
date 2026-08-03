@@ -70,11 +70,11 @@ def _parse_summary_json(summary: str) -> dict:
 
 
 def fetch_patient_info(pid: str) -> dict:
-    """Query medical_records for all Mẫu số 03 template fields."""
+    """Query ai_benh_an_so for all Mẫu số 03 template fields."""
     try:
         with db._engine.connect() as conn:
             result = conn.execute(
-                text("SELECT * FROM medical_records WHERE ma_bn_an = :pid LIMIT 1"),
+                text("SELECT * FROM ai_benh_an_so WHERE ma_bn_an = :pid LIMIT 1"),
                 {"pid": pid},
             )
             row = result.mappings().first()

@@ -23,6 +23,13 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 from app.services.agent_package.agents.chatbot_agent import chatbot_agent
+from app.services.agent_package.audit import audit_context
+from app.services.agent_package.masking import (
+    StreamingUnmasker,
+    get_vault,
+    masking_context,
+    remask_text,
+)
 
 log = logging.getLogger(__name__)
 router = APIRouter(prefix="/api", tags=["chat"])
@@ -51,28 +58,46 @@ def _sse(payload: dict) -> str:
 
 @router.post("/chat")
 async def chat(body: ChatRequest) -> StreamingResponse:
-    history = [m.model_dump() for m in body.chat_history]
+    thread_id = body.patient_id
+    # Placeholders are filled in by the SQL tool and stay valid for this thread.
+    vault = get_vault(thread_id)
+
+    # History was already exposed to the user; strip PII before it re-enters
+    # the model context.
+    history = [
+        {**m.model_dump(), "content": remask_text(m.content, vault)}
+        for m in body.chat_history
+    ]
     input_state = {
         "patient_id": body.patient_id,
-        "messages": history + [{"role": "user", "content": body.query}],
+        "messages": history + [{"role": "user", "content": remask_text(body.query, vault)}],
     }
-    config = {"configurable": {"thread_id": body.patient_id}}
+    config = {"configurable": {"thread_id": thread_id}}
 
     async def generate():
+        unmasker = StreamingUnmasker(vault)
         try:
-            async for event in chatbot_agent.astream_events(input_state, config=config, version="v2"):
-                if event["event"] == "on_chat_model_stream":
-                    raw = event["data"]["chunk"].content
-                    if isinstance(raw, list):
-                        token = "".join(
-                            p.get("text", "") if isinstance(p, dict) else str(p)
-                            for p in raw
-                        )
-                    else:
-                        token = raw
-                    if token:
-                        yield _sse({"type": "token", "content": token})
+            with masking_context(vault), audit_context(
+                agent="chatbot-agent", thread_id=thread_id, patient_id=body.patient_id
+            ):
+                async for event in chatbot_agent.astream_events(input_state, config=config, version="v2"):
+                    if event["event"] == "on_chat_model_stream":
+                        raw = event["data"]["chunk"].content
+                        if isinstance(raw, list):
+                            token = "".join(
+                                p.get("text", "") if isinstance(p, dict) else str(p)
+                                for p in raw
+                            )
+                        else:
+                            token = raw
+                        if token:
+                            exposed = unmasker.feed(token)
+                            if exposed:
+                                yield _sse({"type": "token", "content": exposed})
 
+            tail = unmasker.flush()
+            if tail:
+                yield _sse({"type": "token", "content": tail})
             yield _sse({"type": "done"})
 
         except ValueError as exc:

@@ -36,6 +36,13 @@ from pydantic import BaseModel, Field
 from app.services.docx_export import build_docx, fetch_patient_info
 from app.services.html_preview import build_preview_html
 from app.services.agent_package.agents.summary_agent import summary_agent
+from app.services.agent_package.audit import audit_context
+from app.services.agent_package.masking import (
+    get_vault,
+    masking_context,
+    remask_text,
+    unmask_text,
+)
 
 log = logging.getLogger(__name__)
 router = APIRouter(prefix="/api", tags=["summary"])
@@ -89,9 +96,13 @@ async def generate_summary(body: SummaryRequest) -> SummaryResponse:
     }
     config = {"configurable": {"thread_id": pid}}
 
+    vault = get_vault(pid)
     try:
-        result = await summary_agent.ainvoke(input_state, config=config)
-        summary = _extract_text(result["messages"][-1].content)
+        with masking_context(vault), audit_context(
+            agent="summary-agent", thread_id=pid, patient_id=pid, endpoint="summary"
+        ):
+            result = await summary_agent.ainvoke(input_state, config=config)
+        summary = unmask_text(_extract_text(result["messages"][-1].content), vault)
     except Exception as exc:
         log.exception("Summary generation failed for patient %s", pid)
         raise HTTPException(status_code=500, detail=f"Summary generation failed: {exc}")
@@ -114,6 +125,12 @@ async def refine_patient_summary(body: RefineRequest) -> RefineResponse:
 
     log.info("Refine request: patient_id=%s instruction=%.60s", pid, instruction)
 
+    # Same vault as /summary — the incoming text carries its placeholders.
+    vault = get_vault(pid)
+    # The summary was exposed to the user; strip PII again before it re-enters
+    # the model context.
+    current_summary = remask_text(current_summary, vault)
+
     input_state = {
         "patient_id": pid,
         "current_summary": current_summary,
@@ -130,8 +147,11 @@ async def refine_patient_summary(body: RefineRequest) -> RefineResponse:
     config = {"configurable": {"thread_id": f"{pid}-refine"}}
 
     try:
-        result = await summary_agent.ainvoke(input_state, config=config)
-        refined = _extract_text(result["messages"][-1].content)
+        with masking_context(vault), audit_context(
+            agent="summary-agent", thread_id=f"{pid}-refine", patient_id=pid, endpoint="refine"
+        ):
+            result = await summary_agent.ainvoke(input_state, config=config)
+        refined = unmask_text(_extract_text(result["messages"][-1].content), vault)
     except Exception as exc:
         log.exception("Refine failed for patient %s", pid)
         raise HTTPException(status_code=500, detail=f"Refine failed: {exc}")

@@ -18,7 +18,7 @@ def get_all_patients():
                 SELECT ma_bn_an, birthdayyear,
                        departmentid, medicalrecorddate_in, medicalrecorddate_out,
                        chandoan_out_main, chandoan_in
-                FROM medical_records
+                FROM ai_benh_an_so
                 ORDER BY medicalrecorddate_in DESC
             """)
         )
@@ -28,7 +28,7 @@ def get_all_patients():
 def get_patient_info_from_id(patient_id: str):
     with engine.connect() as conn:
         result = conn.execute(
-            text("SELECT * FROM medical_records WHERE ma_bn_an = :pid"),
+            text("SELECT * FROM ai_benh_an_so WHERE ma_bn_an = :pid"),
             {"pid": patient_id.strip()},
         )
         row = result.mappings().first()

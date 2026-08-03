@@ -11,6 +11,6 @@ langchain-core
 langchain_google_genai
 langgraph
 litellm
-psycopg2
+psycopg2-binary
 langchain
 langchain-community
