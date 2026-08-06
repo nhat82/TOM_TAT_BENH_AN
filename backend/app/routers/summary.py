@@ -33,9 +33,11 @@ from fastapi import APIRouter, HTTPException
 from fastapi.responses import HTMLResponse, Response
 from pydantic import BaseModel, Field
 
+import opik
+
 from app.services.docx_export import build_docx, fetch_patient_info
 from app.services.html_preview import build_preview_html
-from app.services.agent_package.agents.summary_agent import summary_agent
+from app.services.agent_package.agent_summary import summary_agent
 from app.services.agent_package.audit import audit_context
 from app.services.agent_package.masking import (
     get_vault,
@@ -43,6 +45,7 @@ from app.services.agent_package.masking import (
     remask_text,
     unmask_text,
 )
+from app.services.agent_package.tracing import get_opik_tracer
 
 log = logging.getLogger(__name__)
 router = APIRouter(prefix="/api", tags=["summary"])
@@ -83,6 +86,7 @@ def _extract_text(content) -> str:
 
 
 @router.post("/summary", response_model=SummaryResponse)
+@opik.track(name="generate_summary")
 async def generate_summary(body: SummaryRequest) -> SummaryResponse:
     pid = body.ma_bn_an.strip()
     if not pid:
@@ -94,7 +98,10 @@ async def generate_summary(body: SummaryRequest) -> SummaryResponse:
         "patient_id": pid,
         "messages": [{"role": "user", "content": f"Generate the medical summary for patient {pid}."}],
     }
-    config = {"configurable": {"thread_id": pid}}
+    config = {
+        "configurable": {"thread_id": pid},
+        "callbacks": [get_opik_tracer(agent="summary-agent", thread_id=pid, patient_id=pid, endpoint="summary")],
+    }
 
     vault = get_vault(pid)
     try:
@@ -111,6 +118,7 @@ async def generate_summary(body: SummaryRequest) -> SummaryResponse:
 
 
 @router.post("/refine", response_model=RefineResponse)
+@opik.track(name="refine_patient_summary")
 async def refine_patient_summary(body: RefineRequest) -> RefineResponse:
     pid = body.ma_bn_an.strip()
     instruction = body.prompt.strip()
@@ -144,7 +152,12 @@ async def refine_patient_summary(body: RefineRequest) -> RefineResponse:
             }
         ],
     }
-    config = {"configurable": {"thread_id": f"{pid}-refine"}}
+    config = {
+        "configurable": {"thread_id": f"{pid}-refine"},
+        "callbacks": [
+            get_opik_tracer(agent="summary-agent", thread_id=f"{pid}-refine", patient_id=pid, endpoint="refine")
+        ],
+    }
 
     try:
         with masking_context(vault), audit_context(

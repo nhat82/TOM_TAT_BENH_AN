@@ -13,7 +13,7 @@ from datetime import date, datetime
 from docxtpl import DocxTemplate
 from sqlalchemy import text
 
-from app.services.database import db
+from app.core.database import db
 
 log = logging.getLogger(__name__)
 

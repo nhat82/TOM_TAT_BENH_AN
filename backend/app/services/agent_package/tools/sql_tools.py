@@ -53,7 +53,12 @@ def run_sql_query(
     Write the query using named placeholders (e.g. :patient_id, :name)
     and pass the actual values in the `parameters` dict. Never inline
     user-provided values directly into the SQL string.
-    The current patient's ID is automatically available as :patient_id.
+    The current patient's ID is automatically available as :patient_id — do
+    NOT put "patient_id" in `parameters` yourself, it is injected and any
+    value you pass there is ignored. In table ai_benh_an_so this corresponds
+    to the column `ma_bn_an` (a string code, e.g. "BA2025000006") — NOT the
+    `id` column, which is an unrelated bigint primary key. Always confirm the
+    correct join/filter column via get_table_schema before writing the query.
 
     Personal-identity columns (ho_ten, cccd, isbn_ut, birthdayyear,
     dm_tinhcode) are returned masked as numbered placeholders such as
@@ -65,7 +70,7 @@ def run_sql_query(
         query = "SELECT diagnosis FROM visits WHERE patient_id = :patient_id"
         parameters = {'patient_id': 'BN41'}
     """
-    merged = {"patient_id": patient_id, **(parameters or {})}
+    merged = {**(parameters or {}), "patient_id": patient_id}
     started = log_tool_call("run_sql_query", patient_id=patient_id)
     # Records the statement and flags anything beyond a plain read (WARNING).
     verdict = log_sql_query(query, merged)

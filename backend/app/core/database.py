@@ -1,6 +1,6 @@
 from sqlalchemy import create_engine
 from langchain_community.utilities import SQLDatabase
-from app.config import settings
+from app.core.config import settings
 
 engine = create_engine(settings.db_url.get_secret_value())
 

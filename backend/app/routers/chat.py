@@ -7,7 +7,7 @@ Request
 
 Response  (SSE, text/event-stream)
   data: {"type": "token",  "content": "…"}
-  data: {"type": "done"}
+  data: {"type": "done", "tool_calls": int}
   data: {"type": "error",  "detail": "…"}
 
 Each conversation thread is checkpointed by MemorySaver (thread_id = patient_id).
@@ -18,11 +18,12 @@ Each conversation thread is checkpointed by MemorySaver (thread_id = patient_id)
 import json
 import logging
 
+import opik
 from fastapi import APIRouter
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
-from app.services.agent_package.agents.chatbot_agent import chatbot_agent
+from app.services.agent_package.agent_chat import chatbot_agent
 from app.services.agent_package.audit import audit_context
 from app.services.agent_package.masking import (
     StreamingUnmasker,
@@ -30,6 +31,7 @@ from app.services.agent_package.masking import (
     masking_context,
     remask_text,
 )
+from app.services.agent_package.tracing import get_opik_tracer
 
 log = logging.getLogger(__name__)
 router = APIRouter(prefix="/api", tags=["chat"])
@@ -72,10 +74,17 @@ async def chat(body: ChatRequest) -> StreamingResponse:
         "patient_id": body.patient_id,
         "messages": history + [{"role": "user", "content": remask_text(body.query, vault)}],
     }
-    config = {"configurable": {"thread_id": thread_id}}
+    config = {
+        "configurable": {"thread_id": thread_id},
+        "callbacks": [
+            get_opik_tracer(agent="chatbot-agent", thread_id=thread_id, patient_id=body.patient_id, endpoint="chat")
+        ],
+    }
 
+    @opik.track(name="chat_generate")
     async def generate():
         unmasker = StreamingUnmasker(vault)
+        tool_calls = 0
         try:
             with masking_context(vault), audit_context(
                 agent="chatbot-agent", thread_id=thread_id, patient_id=body.patient_id
@@ -94,11 +103,13 @@ async def chat(body: ChatRequest) -> StreamingResponse:
                             exposed = unmasker.feed(token)
                             if exposed:
                                 yield _sse({"type": "token", "content": exposed})
+                    elif event["event"] == "on_tool_start":
+                        tool_calls += 1
 
             tail = unmasker.flush()
             if tail:
                 yield _sse({"type": "token", "content": tail})
-            yield _sse({"type": "done"})
+            yield _sse({"type": "done", "tool_calls": tool_calls})
 
         except ValueError as exc:
             log.warning("chat error: %s", exc)
