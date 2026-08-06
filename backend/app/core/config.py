@@ -1,11 +1,32 @@
 import os
+from pathlib import Path
+
+import yaml
 from pydantic_settings import BaseSettings
 from pydantic import BaseModel, Field, SecretStr
+
+BACKEND_YAML_PATH = Path(__file__).resolve().parents[3] / "config" / "backend.yaml"
+
 
 class ModelConfig(BaseModel):
     model_name: str
     temperature: float = 0.0
     fallback_model_name: str | None = None
+
+
+class BackendConfig(BaseModel):
+    masked_fields: frozenset[str] = frozenset()
+
+
+def load_backend_config(path: Path = BACKEND_YAML_PATH) -> BackendConfig:
+    if not path.exists():
+        return BackendConfig()
+    with path.open("r", encoding="utf-8") as f:
+        data = yaml.safe_load(f) or {}
+    return BackendConfig(**data)
+
+
+backend_config = load_backend_config()
 
 class Settings(BaseSettings):
     db_url: SecretStr = Field(alias="PG_URL")

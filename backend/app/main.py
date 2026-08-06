@@ -2,9 +2,10 @@ import logging
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.routers.chat import router as chat_router
-from app.routers.patient import router as patient_router
-from app.routers.summary import router as summary_router
+from app.modules.medrecords.route.patient_route import router as patient_router
+from app.modules.medrecord_chat.route.chat_route import router as chat_router
+from app.modules.medrecord_export.route.export_route import router as export_router
+from app.modules.medrecord_summary.route.summary_route import router as summary_router
 import os
 
 logging.basicConfig(
@@ -27,6 +28,7 @@ app.add_middleware(
 app.include_router(summary_router)
 app.include_router(chat_router)
 app.include_router(patient_router)
+app.include_router(export_router)
 
 
 @app.get("/")

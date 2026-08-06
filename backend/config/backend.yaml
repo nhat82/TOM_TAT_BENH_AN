@@ -1,0 +1,6 @@
+masked_fields:
+  - ho_ten
+  - cccd
+  - isbn_ut
+  - birthdayyear
+  - dm_tinhcode
