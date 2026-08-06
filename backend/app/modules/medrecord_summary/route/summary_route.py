@@ -17,6 +17,7 @@ Errors
 from __future__ import annotations
 
 import logging
+from datetime import datetime
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
@@ -24,12 +25,7 @@ from pydantic import BaseModel, Field
 import opik
 
 from app.modules.medrecord_summary.services.agent_summary import summary_agent
-from app.agents.masking import (
-    get_vault,
-    masking_context,
-    remask_text,
-    unmask_text,
-)
+from app.core.security import pii_masker
 from app.agents.tracing import get_opik_tracer
 
 log = logging.getLogger(__name__)
@@ -79,23 +75,26 @@ async def generate_summary(body: SummaryRequest) -> SummaryResponse:
 
     log.info("Summary request: patient_id=%s", pid)
 
+    message_key = f"{pid}:{datetime.now().isoformat()}"
     input_state = {
         "patient_id": pid,
+        "message_key": message_key,
         "messages": [{"role": "user", "content": f"Generate the medical summary for patient {pid}."}],
     }
+    tracer = get_opik_tracer(agent="summary-agent", thread_id=pid, patient_id=pid, endpoint="summary")
     config = {
         "configurable": {"thread_id": pid},
-        "callbacks": [get_opik_tracer(agent="summary-agent", thread_id=pid, patient_id=pid, endpoint="summary")],
+        "callbacks": [tracer] if tracer else [],
     }
 
-    vault = get_vault(pid)
     try:
-        with masking_context(vault):
-            result = await summary_agent.ainvoke(input_state, config=config)
-        summary = unmask_text(_extract_text(result["messages"][-1].content), vault)
+        result = await summary_agent.ainvoke(input_state, config=config)
+        summary = pii_masker.unmask(message_key, _extract_text(result["messages"][-1].content))
     except Exception as exc:
         log.exception("Summary generation failed for patient %s", pid)
         raise HTTPException(status_code=500, detail=f"Summary generation failed: {exc}")
+    finally:
+        pii_masker.forget(message_key)
 
     return SummaryResponse(patient_id=pid, summary=summary)
 
@@ -116,14 +115,10 @@ async def refine_patient_summary(body: RefineRequest) -> RefineResponse:
 
     log.info("Refine request: patient_id=%s instruction=%.60s", pid, instruction)
 
-    # Same vault as /summary — the incoming text carries its placeholders.
-    vault = get_vault(pid)
-    # The summary was exposed to the user; strip PII again before it re-enters
-    # the model context.
-    current_summary = remask_text(current_summary, vault)
-
+    message_key = f"{pid}:{datetime.now().isoformat()}"
     input_state = {
         "patient_id": pid,
+        "message_key": message_key,
         "current_summary": current_summary,
         "messages": [
             {
@@ -135,19 +130,19 @@ async def refine_patient_summary(body: RefineRequest) -> RefineResponse:
             }
         ],
     }
+    tracer = get_opik_tracer(agent="summary-agent", thread_id=f"{pid}-refine", patient_id=pid, endpoint="refine")
     config = {
         "configurable": {"thread_id": f"{pid}-refine"},
-        "callbacks": [
-            get_opik_tracer(agent="summary-agent", thread_id=f"{pid}-refine", patient_id=pid, endpoint="refine")
-        ],
+        "callbacks": [tracer] if tracer else [],
     }
 
     try:
-        with masking_context(vault):
-            result = await summary_agent.ainvoke(input_state, config=config)
-        refined = unmask_text(_extract_text(result["messages"][-1].content), vault)
+        result = await summary_agent.ainvoke(input_state, config=config)
+        refined = pii_masker.unmask(message_key, _extract_text(result["messages"][-1].content))
     except Exception as exc:
         log.exception("Refine failed for patient %s", pid)
         raise HTTPException(status_code=500, detail=f"Refine failed: {exc}")
+    finally:
+        pii_masker.forget(message_key)
 
     return RefineResponse(patient_id=pid, summary=refined)

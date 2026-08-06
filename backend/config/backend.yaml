@@ -4,3 +4,4 @@ masked_fields:
   - isbn_ut
   - birthdayyear
   - dm_tinhcode
+  - dm_gioitinhid

@@ -1,10 +1,13 @@
 from typing import Annotated, Any
+
+from sqlalchemy import text
 from langchain.tools import tool
 from langgraph.prebuilt import InjectedState
-from sqlalchemy import text
-from ..schemas.tool_io import SQLQueryInput, SQLQueryOutput
+
+from app.core.security import pii_masker
+
 from ..db import db
-from ..masking import mask_rows
+from ..schemas.tool_io import SQLQueryInput, SQLQueryOutput
 
 @tool
 def list_tables() -> str:
@@ -26,6 +29,7 @@ def run_sql_query(
     query: str,
     parameters: dict[str, Any],
     patient_id: Annotated[str, InjectedState("patient_id")],
+    message_key: Annotated[str, InjectedState("message_key")],
 ) -> SQLQueryOutput:
     """
     Executes a parameterized SQL query against the local database.
@@ -50,14 +54,25 @@ def run_sql_query(
         query = "SELECT diagnosis FROM visits WHERE patient_id = :patient_id"
         parameters = {'patient_id': 'BN41'}
     """
+    if ":patient_id" not in query:
+        return (
+            "Error executing query: this query does not filter by :patient_id. "
+            "Every query must scope rows to the current patient using the "
+            ":patient_id placeholder — rewrite the query and try again."
+        )
+
     merged = {**(parameters or {}), "patient_id": patient_id}
     try:
         with db._engine.connect() as conn:
             result = conn.execute(text(query), merged)
             columns = list(result.keys())
             rows = [dict(zip(columns, row)) for row in result.fetchall()]
-        masked = mask_rows(rows)
-        return SQLQueryOutput(source_columns=columns, data={"rows": masked})
+
+        if "ma_bn_an" in columns:
+            rows = [row for row in rows if row.get("ma_bn_an") == patient_id]
+
+        pii_masker.mask(message_key, rows)
+        return SQLQueryOutput(source_columns=columns, data={"rows": rows})
     except Exception as e:
         return f"Error executing query: {str(e)}. Please correct your SQL syntax and try again."
 

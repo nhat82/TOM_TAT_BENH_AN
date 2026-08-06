@@ -6,11 +6,12 @@ from langchain.agents.middleware import PIIMiddleware
 from app.agents.tools import sql_tools
 from app.agents.schemas import SummaryAgentState
 from app.agents.models import get_model
-from .prompts import system_prompt as summary_system_prompt
+from app.agents.prompts import summary_system_prompt
 
 
 summary_agent = create_agent(
-    model=get_model("local/qwen3:14b"),
+    # model=get_model("local/qwen3:14b"),
+    model=get_model("api/gemini-3.1-flash-lite"),
     name="summary-agent",
     tools=sql_tools,
     system_prompt=summary_system_prompt,
