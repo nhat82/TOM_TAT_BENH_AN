@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import Header from '../components/Header'
 import Footer from '../components/Footer'
+import { Card } from '../components/ui/card'
+import { Badge } from '../components/ui/badge'
 
 type PatientKey = 'active' | 'stable'
 type FilterKey = 'all' | PatientKey
@@ -16,6 +18,8 @@ interface Patient {
   visit: string
   status: string
   key: PatientKey
+  rawVisitDate: string
+  missingOutDiagnosis: boolean
 }
 
 interface RawPatient {
@@ -66,7 +70,17 @@ function mapRawPatient(r: RawPatient): Patient {
     visit: relativeDate(r.medicalrecorddate_in),
     status: discharged ? 'Đã ra viện' : 'Đang điều trị',
     key: discharged ? 'stable' : 'active',
+    rawVisitDate: r.medicalrecorddate_in,
+    missingOutDiagnosis: discharged && !r.chandoan_out_main,
   }
+}
+
+function isWithinLastDays(dateStr: string, days: number): boolean {
+  if (!dateStr) return false
+  const d = new Date(dateStr)
+  if (isNaN(d.getTime())) return false
+  const diffMs = Date.now() - d.getTime()
+  return diffMs >= 0 && diffMs <= days * 86400000
 }
 
 function initials(name: string) {
@@ -76,7 +90,6 @@ function initials(name: string) {
 }
 
 export default function HomePage() {
-  const [patientId, setPatientId] = useState('')
   const [activeFilter, setActiveFilter] = useState<FilterKey>('all')
   const [query] = useState('')
   const [patients, setPatients] = useState<Patient[]>([])
@@ -100,11 +113,6 @@ export default function HomePage() {
       .finally(() => setLoading(false))
   }, [])
 
-  function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault()
-    if (patientId.trim()) navigate(`/patient/${patientId.trim()}`)
-  }
-
   const filtered = patients.filter((p) => {
     const q = query.trim().toLowerCase()
     const matchQ = !q || p.code.toLowerCase().includes(q) || p.name.toLowerCase().includes(q)
@@ -115,6 +123,16 @@ export default function HomePage() {
   const totalCount = patients.length
   const activeCount = patients.filter((p) => p.key === 'active').length
   const stableCount = patients.filter((p) => p.key === 'stable').length
+  const newCount = patients.filter((p) => isWithinLastDays(p.rawVisitDate, 7)).length
+  const missingDiagnosisCount = patients.filter((p) => p.missingOutDiagnosis).length
+
+  const kpis: { label: string; value: number; color: string; warn?: boolean }[] = [
+    { label: 'Tổng hồ sơ', value: totalCount, color: '#3B63E0' },
+    { label: 'Đang điều trị', value: activeCount, color: '#3B63E0' },
+    { label: 'Đã ra viện', value: stableCount, color: '#2E8B57' },
+    { label: 'Hồ sơ mới (7 ngày)', value: newCount, color: '#6D5FE0' },
+    { label: 'Thiếu chẩn đoán ra viện', value: missingDiagnosisCount, color: '#C4531D', warn: true },
+  ]
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
   const safePage = Math.min(page, totalPages)
@@ -138,73 +156,21 @@ export default function HomePage() {
 
       <main className="flex-1 w-full max-w-[1240px] mx-auto px-10 py-12 pb-16">
 
-        {/* HERO */}
-        <section className="grid grid-cols-[1.05fr_0.95fr] gap-10 items-stretch mb-[52px]">
-          <div>
-            <div className="text-[12px] font-bold tracking-[0.16em] text-[#9AA3B8] mb-[18px] uppercase">
-              Hệ thống AI Lâm sàng · Lead Consulting
-            </div>
-            <h1 className="text-[52px] leading-[1.04] font-extrabold tracking-[-0.02em] text-[#1B2440] m-0 mb-4">
-              Tóm tắt<br />Bệnh án
-            </h1>
-            <div className="w-14 h-1 rounded-sm bg-primary mb-6" />
-            <p className="text-[17px] leading-relaxed text-[#6A748D] max-w-[380px] mb-7">
-              Nhập mã bệnh nhân để xem hồ sơ và tạo tóm tắt với AI, hoặc chọn từ danh sách bên dưới.
-            </p>
-            <form onSubmit={handleSubmit} className="flex gap-3 max-w-[480px]">
-              <input
-                type="text"
-                value={patientId}
-                onChange={(e) => setPatientId(e.target.value)}
-                placeholder="Mã bệnh nhân (vd. BN0052)"
-                className="flex-1 px-[18px] py-[15px] border border-outline-variant rounded-[7px] bg-white text-[15px] text-on-surface placeholder:text-on-surface-variant outline-none focus:border-primary focus:ring-1 focus:ring-primary/30 transition-colors"
-              />
-              <button
-                type="submit"
-                className="px-[26px] py-[15px] border-none rounded-[7px] bg-primary text-white text-[15px] font-semibold cursor-pointer whitespace-nowrap shadow-[0_6px_16px_rgba(47,111,237,.32)] hover:bg-primary/90 transition-colors disabled:opacity-50"
-                disabled={!patientId.trim()}
-              >
-                Xem hồ sơ
-              </button>
-            </form>
-          </div>
-
-          {/* Stats card */}
-          <div className="bg-white border border-[#ECEFF6] rounded-[12px] p-[30px] flex flex-col gap-[22px] shadow-[0_10px_30px_rgba(27,36,64,.05)]">
-            <div className="text-[13px] font-bold tracking-[0.04em] text-[#6A748D]">TỔNG QUAN HỒ SƠ</div>
-            <div className="grid grid-cols-2 gap-[18px]">
-              <div className="bg-[#F7F9FD] rounded-[8px] p-[18px]">
-                <div className="text-[30px] font-extrabold tracking-[-0.02em]" style={{ color: '#3B63E0' }}>
-                  {loading ? '—' : totalCount}
+        {/* KPI ROW */}
+        <section className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 mb-10">
+          {kpis.map((k) => (
+            <Card key={k.label} className="p-5 border-[#ECEFF6] shadow-[0_1px_2px_rgba(20,40,80,.04),0_6px_20px_rgba(20,40,80,.05)]">
+              <div className="flex items-start justify-between gap-2">
+                <div className="text-[28px] font-extrabold tracking-[-0.02em]" style={{ color: k.color }}>
+                  {loading ? '—' : k.value}
                 </div>
-                <div className="text-[13px] font-medium text-[#8A93A8] mt-1">Tổng hồ sơ</div>
+                {k.warn && !loading && k.value > 0 && (
+                  <Badge variant="destructive">Cần chú ý</Badge>
+                )}
               </div>
-              <div className="bg-[#F7F9FD] rounded-[8px] p-[18px]">
-                <div className="text-[30px] font-extrabold tracking-[-0.02em]" style={{ color: '#3B63E0' }}>
-                  {loading ? '—' : activeCount}
-                </div>
-                <div className="text-[13px] font-medium text-[#8A93A8] mt-1">Đang điều trị</div>
-              </div>
-              <div className="bg-[#F7F9FD] rounded-[8px] p-[18px]">
-                <div className="text-[30px] font-extrabold tracking-[-0.02em]" style={{ color: '#2E8B57' }}>
-                  {loading ? '—' : stableCount}
-                </div>
-                <div className="text-[13px] font-medium text-[#8A93A8] mt-1">Đã ra viện</div>
-              </div>
-              <div className="bg-[#F7F9FD] rounded-[8px] p-[18px]">
-                <div className="text-[30px] font-extrabold tracking-[-0.02em]" style={{ color: '#9AA3B8' }}>
-                  {loading ? '—' : filtered.length}
-                </div>
-                <div className="text-[13px] font-medium text-[#8A93A8] mt-1">Đang hiển thị</div>
-              </div>
-            </div>
-            <div className="mt-auto flex items-center gap-[10px] px-4 py-[14px] bg-[#EEF7F0] rounded-[7px]">
-              <span className="w-2 h-2 rounded-full bg-[#2FA56A] flex-none" />
-              <span className="text-[13.5px] font-medium text-[#2E7D52]">
-                {loading ? 'Đang tải dữ liệu...' : `AI sẵn sàng tạo tóm tắt cho ${totalCount} hồ sơ`}
-              </span>
-            </div>
-          </div>
+              <div className="text-[13px] font-medium text-[#8A93A8] mt-1">{k.label}</div>
+            </Card>
+          ))}
         </section>
 
         {/* PATIENT LIST */}
